@@ -10,7 +10,7 @@ import { toast } from "@/hooks/use-toast"
 import { Eye, EyeOff } from 'lucide-react'
 
 export default function SignInPage() {
-  const [studentId, setStudentId] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
@@ -19,10 +19,14 @@ export default function SignInPage() {
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {}
 
-    // Validate student ID
-    const studentIdRegex = /^\d{7}$/
-    if (!studentIdRegex.test(studentId)) {
-      newErrors.studentId = "Student ID must be 7 digits"
+    // Validate identifier (student ID, string, or email)
+    if (identifier.trim() === '') {
+      newErrors.identifier = "ID is required"
+    } else if (!/^\d{7}$/.test(identifier) && !identifier.includes('@')) {
+      // If it's not a 7-digit number and not an email, it's treated as a username
+      if (identifier.length < 3) {
+        newErrors.identifier = "Username must be at least 3 characters long"
+      }
     }
 
     // Validate password is not empty
@@ -40,7 +44,7 @@ export default function SignInPage() {
     if (validateForm()) {
       // Here you would typically send a request to your backend API
       // For now, we'll just simulate a successful signin
-      console.log('Signin data:', { studentId, password })
+      console.log('Signin data:', { identifier, password })
       
       toast({
         title: "Signed in successfully.",
@@ -62,15 +66,15 @@ export default function SignInPage() {
         <h1 className="text-2xl font-bold mb-6 text-center">Sign In to ClubConnect</h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="studentId">Student ID</Label>
+            <Label htmlFor="identifier">ID</Label>
             <Input
-              id="studentId"
+              id="identifier"
               placeholder="1234567"
-              value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
             />
-            {errors.studentId && <p className="text-sm text-red-500">{errors.studentId}</p>}
+            {errors.identifier && <p className="text-sm text-red-500">{errors.identifier}</p>}
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
