@@ -29,11 +29,11 @@ const clubData = {
   memberCount: 50,
   announcements: [
     { id: 1, title: "Weekly Meeting", content: "Our next meeting is on Friday at 5 PM.", date: "2023-07-20", image: "/placeholder.svg?height=200&width=400" },
-    { id: 2, title: "Tournament Announcement", content: "We're hosting a tournament next month!", date: "2023-07-25", image: "/placeholder.svg?height=200&width=400" },
+    { id: 2, title: "Tournament Announcement", content: "We're hosting a tournament next month!", date: "2023-07-25" },
   ],
   events: [
     { id: 1, title: "Beginner's Workshop", description: "Learn the basics of chess", date: "2023-08-05", image: "/placeholder.svg?height=200&width=400" },
-    { id: 2, title: "Chess Tournament", description: "Annual club tournament", date: "2023-08-15", image: "/placeholder.svg?height=200&width=400" },
+    { id: 2, title: "Chess Tournament", description: "Annual club tournament", date: "2023-08-15" },
   ],
 }
 
@@ -47,25 +47,27 @@ export default function ClubManagementPage() {
   const [itemToDelete, setItemToDelete] = useState<{ type: 'announcement' | 'event', id: number } | null>(null)
 
   const handleCreateAnnouncement = (formData: FormData) => {
+    const imageFile = formData.get('image') as File
     const newAnnouncement = {
       id: announcements.length + 1,
       title: formData.get('title') as string,
       content: formData.get('content') as string,
       date: new Date().toISOString().split('T')[0],
-      image: URL.createObjectURL(formData.get('image') as File),
+      image: imageFile.size > 0 ? URL.createObjectURL(imageFile) : undefined,
     }
     setAnnouncements([...announcements, newAnnouncement])
     setIsAnnouncementDialogOpen(false)
   }
 
   const handleEditAnnouncement = (formData: FormData) => {
+    const imageFile = formData.get('image') as File
     const updatedAnnouncements = announcements.map(announcement => 
       announcement.id === currentItem.id 
         ? { 
             ...announcement, 
             title: formData.get('title') as string, 
             content: formData.get('content') as string,
-            image: formData.get('image') as File ? URL.createObjectURL(formData.get('image') as File) : announcement.image
+            image: imageFile.size > 0 ? URL.createObjectURL(imageFile) : announcement.image
           }
         : announcement
     )
@@ -79,18 +81,20 @@ export default function ClubManagementPage() {
   }
 
   const handleCreateEvent = (formData: FormData) => {
+    const imageFile = formData.get('image') as File
     const newEvent = {
       id: events.length + 1,
       title: formData.get('title') as string,
       description: formData.get('description') as string,
       date: formData.get('date') as string,
-      image: URL.createObjectURL(formData.get('image') as File),
+      image: imageFile.size > 0 ? URL.createObjectURL(imageFile) : undefined,
     }
     setEvents([...events, newEvent])
     setIsEventDialogOpen(false)
   }
 
   const handleEditEvent = (formData: FormData) => {
+    const imageFile = formData.get('image') as File
     const updatedEvents = events.map(event => 
       event.id === currentItem.id 
         ? { 
@@ -98,7 +102,7 @@ export default function ClubManagementPage() {
             title: formData.get('title') as string, 
             description: formData.get('description') as string, 
             date: formData.get('date') as string,
-            image: formData.get('image') as File ? URL.createObjectURL(formData.get('image') as File) : event.image
+            image: imageFile.size > 0 ? URL.createObjectURL(imageFile) : event.image
           }
         : event
     )
@@ -222,7 +226,7 @@ export default function ClubManagementPage() {
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="image" className="text-right">
-                          Image
+                          Image (Optional)
                         </Label>
                         <Input id="image" name="image" type="file" accept="image/*" className="col-span-3" />
                       </div>
@@ -241,15 +245,17 @@ export default function ClubManagementPage() {
                     <CardTitle>{announcement.title}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="mb-4">
-                      <Image
-                        src={announcement.image}
-                        alt={announcement.title}
-                        width={400}
-                        height={200}
-                        className="rounded-md object-cover w-full"
-                      />
-                    </div>
+                    {announcement.image && (
+                      <div className="mb-4">
+                        <Image
+                          src={announcement.image}
+                          alt={announcement.title}
+                          width={400}
+                          height={200}
+                          className="rounded-md object-cover w-full"
+                        />
+                      </div>
+                    )}
                     <p>{announcement.content}</p>
                     <p className="text-sm text-gray-500 mt-2">Date: {announcement.date}</p>
                     <div className="flex justify-end space-x-2 mt-4">
@@ -300,10 +306,10 @@ export default function ClubManagementPage() {
                         <Label htmlFor="description" className="text-right">
                           Description
                         </Label>
-                        <Textarea id="description" name="description" defaultValue={currentItem?.description} className="col-span-3" />
+                        <Textarea id="description" name="description" defaultValue={currentItem?.description} 
+                        className="col-span-3" />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
-                        
                         <Label htmlFor="date" className="text-right">
                           Date
                         </Label>
@@ -311,7 +317,7 @@ export default function ClubManagementPage() {
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="image" className="text-right">
-                          Image
+                          Image (Optional)
                         </Label>
                         <Input id="image" name="image" type="file" accept="image/*" className="col-span-3" />
                       </div>
@@ -330,15 +336,17 @@ export default function ClubManagementPage() {
                     <CardTitle>{event.title}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="mb-4">
-                      <Image
-                        src={event.image}
-                        alt={event.title}
-                        width={400}
-                        height={200}
-                        className="rounded-md object-cover w-full"
-                      />
-                    </div>
+                    {event.image && (
+                      <div className="mb-4">
+                        <Image
+                          src={event.image}
+                          alt={event.title}
+                          width={400}
+                          height={200}
+                          className="rounded-md object-cover w-full"
+                        />
+                      </div>
+                    )}
                     <p>{event.description}</p>
                     <p className="text-sm text-gray-500 mt-2">Date: {event.date}</p>
                     <div className="flex justify-end space-x-2 mt-4">
