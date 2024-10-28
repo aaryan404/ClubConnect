@@ -26,8 +26,16 @@ interface Club {
 
 export default function AdminClubManagement() {
   const [clubs, setClubs] = useState<Club[]>([
-    { id: 1, name: "Chess Club", description: "For chess enthusiasts", members: 15 },
-    { id: 2, name: "Debate Society", description: "Improve your public speaking", members: 20 },
+    { id: 1, name: "NCT Coding Club", description: "For coding enthusiasts", members: 25 },
+    { id: 2, name: "NCT Robotics Club", description: "Build and program robots", members: 20 },
+    { id: 3, name: "NCT E-Sports Club", description: "Competitive gaming", members: 30 },
+    { id: 4, name: "NCT Boardgames Club", description: "Strategy and fun with boardgames", members: 15 },
+    { id: 5, name: "NCT Book Club", description: "For book lovers", members: 18 },
+    { id: 6, name: "NCT Cricket Club", description: "Play cricket", members: 22 },
+    { id: 7, name: "Basketball Club", description: "Shoot some hoops", members: 20 },
+    { id: 8, name: "Volleyball Club", description: "Spike and serve", members: 18 },
+    { id: 9, name: "Badminton Club", description: "Racquet sports enthusiasts", members: 16 },
+    { id: 10, name: "Soccer Club", description: "Football for all", members: 24 },
   ])
   const [newClub, setNewClub] = useState({ name: "", description: "" })
 

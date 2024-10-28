@@ -38,7 +38,18 @@ interface Event {
   category: string
 }
 
-const clubs = ["Chess Club", "Debate Society", "Drama Club", "Music Club", "Sports Club"]
+const clubs = [
+  "NCT Coding Club",
+  "NCT Robotics Club",
+  "NCT E-Sports Club",
+  "NCT Boardgames Club",
+  "NCT Book Club",
+  "NCT Cricket Club",
+  "Basketball Club",
+  "Volleyball Club",
+  "Badminton Club",
+  "Soccer Club"
+]
 
 export default function AdminEventManagement() {
   const [events, setEvents] = useState<Event[]>([])

@@ -1,11 +1,9 @@
 "use client"
 
 import { useState } from 'react'
-import Link from 'next/link'
 import Image from 'next/image'
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Users, ClipboardList, Calendar, Bell, LogOut, Settings, Plus, Edit, Trash2, Image as ImageIcon } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Plus, Edit, Trash2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -22,18 +20,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import Navigation from '@/components/navigation'
 
 // Mock data (replace with actual data fetching in a real application)
 const clubData = {
   name: "Chess Club",
   memberCount: 50,
   announcements: [
-    { id: 1, title: "Weekly Meeting", content: "Our next meeting is on Friday at 5 PM.", date: "2023-07-20", image: "/placeholder.svg?height=200&width=400" },
-    { id: 2, title: "Tournament Announcement", content: "We're hosting a tournament next month!", date: "2023-07-25" },
+    { id: 1, title: "Weekly Meeting", content: "Our next meeting is on Friday at 5 PM.", date: "2024-10-28", image: "" },
+    { id: 2, title: "Tournament Announcement", content: "We're hosting a tournament next month!", date: "2024-07-25" },
   ],
   events: [
-    { id: 1, title: "Beginner's Workshop", description: "Learn the basics of chess", date: "2023-08-05", image: "/placeholder.svg?height=200&width=400" },
-    { id: 2, title: "Chess Tournament", description: "Annual club tournament", date: "2023-08-15" },
+    { id: 1, title: "Beginner's Workshop", description: "Learn the basics of chess", date: "2024-09-05", time: "14:00", location: "Main Hall", image: "" },
+    { id: 2, title: "Chess Tournament", description: "Annual club tournament", date: "2024-08-15", time: "10:00", location: "University Gymnasium" },
   ],
 }
 
@@ -87,6 +86,8 @@ export default function ClubManagementPage() {
       title: formData.get('title') as string,
       description: formData.get('description') as string,
       date: formData.get('date') as string,
+      time: formData.get('time') as string,
+      location: formData.get('location') as string,
       image: imageFile.size > 0 ? URL.createObjectURL(imageFile) : undefined,
     }
     setEvents([...events, newEvent])
@@ -102,6 +103,8 @@ export default function ClubManagementPage() {
             title: formData.get('title') as string, 
             description: formData.get('description') as string, 
             date: formData.get('date') as string,
+            time: formData.get('time') as string,
+            location: formData.get('location') as string,
             image: imageFile.size > 0 ? URL.createObjectURL(imageFile) : event.image
           }
         : event
@@ -127,61 +130,7 @@ export default function ClubManagementPage() {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md flex flex-col">
-        <div className="p-4 flex justify-between items-center border-b">
-          <h1 className="text-xl font-bold">ClubConnect</h1>
-          <Image
-            src="/placeholder.svg?height=40&width=40"
-            alt="ClubConnect Logo"
-            width={40}
-            height={40}
-            className="rounded-full"
-          />
-        </div>
-        <div className="p-4 flex-grow">
-          <Link href="/sub-admin/profile" className="flex items-center space-x-4 mb-6 hover:bg-gray-100 rounded p-2">
-            <Avatar>
-              <AvatarImage src="/placeholder.svg" alt="Sub-Admin" />
-              <AvatarFallback>SA</AvatarFallback>
-            </Avatar>
-            <div>
-              <h2 className="text-lg font-semibold">Sarah Adams</h2>
-              <p className="text-sm text-gray-500">Sub-Admin</p>
-            </div>
-          </Link>
-          <nav className="space-y-2">
-            <Link href="/sub-admin/dashboard" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Users size={20} />
-              <span>Dashboard</span>
-            </Link>
-            <Link href="/sub-admin/announcements" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Bell size={20} />
-              <span>Announcements</span>
-            </Link>
-            <Link href="/sub-admin/clubs" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <ClipboardList size={20} />
-              <span>Clubs</span>
-            </Link>
-            <Link href="/sub-admin/club-management" className="flex items-center space-x-2 p-2 bg-gray-100 rounded">
-              <Settings size={20} />
-              <span>Club Management</span>
-            </Link>
-            <Link href="/sub-admin/events" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Calendar size={20} />
-              <span>Events</span>
-            </Link>
-            <Link href="/sub-admin/members" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Users size={20} />
-              <span>Members</span>
-            </Link>
-            <Link href="/auth/signin" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <LogOut size={20} />
-              <span>Logout</span>
-            </Link>
-          </nav>
-        </div>
-      </aside>
+      <Navigation active={"club-management"} />
 
       {/* Main content */}
       <main className="flex-1 p-8 overflow-y-auto">
@@ -238,27 +187,27 @@ export default function ClubManagementPage() {
                 </DialogContent>
               </Dialog>
             </div>
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {announcements.map((announcement) => (
-                <Card key={announcement.id}>
-                  <CardHeader>
-                    <CardTitle>{announcement.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {announcement.image && (
-                      <div className="mb-4">
-                        <Image
-                          src={announcement.image}
-                          alt={announcement.title}
-                          width={400}
-                          height={200}
-                          className="rounded-md object-cover w-full"
-                        />
-                      </div>
-                    )}
-                    <p>{announcement.content}</p>
-                    <p className="text-sm text-gray-500 mt-2">Date: {announcement.date}</p>
-                    <div className="flex justify-end space-x-2 mt-4">
+                <Card key={announcement.id} className="bg-white shadow-sm flex flex-col">
+                  {announcement.image && (
+                    <CardHeader className="p-0">
+                      <Image
+                        src={announcement.image}
+                        alt={announcement.title}
+                        width={400}
+                        height={200}
+                        className="w-full h-48 object-cover rounded-t-lg"
+                      />
+                    </CardHeader>
+                  )}
+                  <CardContent className="p-4 flex-grow">
+                    <CardTitle className="text-xl mb-2">{announcement.title}</CardTitle>
+                    <p className="text-gray-600 mb-4">{announcement.content}</p>
+                    <p className="text-sm"><strong>Date:</strong> {announcement.date}</p>
+                  </CardContent>
+                  <CardFooter className="p-4">
+                    <div className="flex justify-end space-x-2 w-full">
                       <Button variant="outline" size="sm" onClick={() => {
                         setCurrentItem(announcement)
                         setIsAnnouncementDialogOpen(true)
@@ -272,7 +221,7 @@ export default function ClubManagementPage() {
                         <Trash2 className="mr-2 h-4 w-4" /> Delete
                       </Button>
                     </div>
-                  </CardContent>
+                  </CardFooter>
                 </Card>
               ))}
             </div>
@@ -299,6 +248,7 @@ export default function ClubManagementPage() {
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="title" className="text-right">
                           Title
+                        
                         </Label>
                         <Input id="title" name="title" defaultValue={currentItem?.title} className="col-span-3" />
                       </div>
@@ -306,14 +256,25 @@ export default function ClubManagementPage() {
                         <Label htmlFor="description" className="text-right">
                           Description
                         </Label>
-                        <Textarea id="description" name="description" defaultValue={currentItem?.description} 
-                        className="col-span-3" />
+                        <Textarea id="description" name="description" defaultValue={currentItem?.description} className="col-span-3" />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="date" className="text-right">
                           Date
                         </Label>
                         <Input id="date" name="date" type="date" defaultValue={currentItem?.date} className="col-span-3" />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="time" className="text-right">
+                          Time
+                        </Label>
+                        <Input id="time" name="time" type="time" defaultValue={currentItem?.time} className="col-span-3" />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="location" className="text-right">
+                          Location
+                        </Label>
+                        <Input id="location" name="location" defaultValue={currentItem?.location} className="col-span-3" />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="image" className="text-right">
@@ -329,27 +290,31 @@ export default function ClubManagementPage() {
                 </DialogContent>
               </Dialog>
             </div>
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {events.map((event) => (
-                <Card key={event.id}>
-                  <CardHeader>
-                    <CardTitle>{event.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {event.image && (
-                      <div className="mb-4">
-                        <Image
-                          src={event.image}
-                          alt={event.title}
-                          width={400}
-                          height={200}
-                          className="rounded-md object-cover w-full"
-                        />
-                      </div>
-                    )}
-                    <p>{event.description}</p>
-                    <p className="text-sm text-gray-500 mt-2">Date: {event.date}</p>
-                    <div className="flex justify-end space-x-2 mt-4">
+                <Card key={event.id} className="bg-white shadow-sm flex flex-col">
+                  {event.image && (
+                    <CardHeader className="p-0">
+                      <Image
+                        src={event.image}
+                        alt={event.title}
+                        width={400}
+                        height={200}
+                        className="w-full h-48 object-cover rounded-t-lg"
+                      />
+                    </CardHeader>
+                  )}
+                  <CardContent className="p-4 flex-grow">
+                    <CardTitle className="text-xl mb-2">{event.title}</CardTitle>
+                    <p className="text-gray-600 mb-4">{event.description}</p>
+                    <div className="space-y-2">
+                      <p className="text-sm"><strong>Date:</strong> {event.date}</p>
+                      <p className="text-sm"><strong>Time:</strong> {event.time}</p>
+                      <p className="text-sm"><strong>Location:</strong> {event.location}</p>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="p-4">
+                    <div className="flex justify-end space-x-2 w-full">
                       <Button variant="outline" size="sm" onClick={() => {
                         setCurrentItem(event)
                         setIsEventDialogOpen(true)
@@ -363,7 +328,7 @@ export default function ClubManagementPage() {
                         <Trash2 className="mr-2 h-4 w-4" /> Delete
                       </Button>
                     </div>
-                  </CardContent>
+                  </CardFooter>
                 </Card>
               ))}
             </div>

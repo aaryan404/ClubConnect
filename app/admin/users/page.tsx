@@ -28,6 +28,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 interface User {
   id: number
@@ -38,19 +46,42 @@ interface User {
   club: string
 }
 
+const clubs = [
+  "NCT Coding Club",
+  "NCT Robotics Club",
+  "NCT E-Sports Club",
+  "NCT Boardgames Club",
+  "NCT Book Club",
+  "NCT Cricket Club",
+  "Basketball Club",
+  "Volleyball Club",
+  "Badminton Club",
+  "Soccer Club"
+]
+
 export default function AdminUserManagement() {
   const [users, setUsers] = useState<User[]>([
-    { id: 1, name: "John Doe", studentId: "1234567", email: "john@example.com", role: "student", club: "Chess Club" },
-    { id: 2, name: "Jane Smith", studentId: "2345678", email: "jane@example.com", role: "sub-admin", club: "Debate Society" },
-    { id: 3, name: "Alice Johnson", studentId: "3456789", email: "alice@example.com", role: "student", club: "Chess Club" },
-    { id: 4, name: "Bob Williams", studentId: "4567890", email: "bob@example.com", role: "sub-admin", club: "Drama Club" },
+    { id: 1, name: "Arpine", studentId: "1234567", email: "arpine@nctorontostudents.ca", role: "student", club: "NCT Coding Club" },
+    { id: 2, name: "Om patel", studentId: "2345678", email: "om@nctorontostudents.ca", role: "student", club: "NCT Robotics Club" },
+    { id: 3, name: "Yadhu", studentId: "3456789", email: "yadhu@nctorontostudents.ca", role: "student", club: "NCT E-Sports Club" },
+    { id: 4, name: "Eber", studentId: "4567890", email: "eber@nctorontostudents.ca", role: "student", club: "NCT Boardgames Club" },
+    { id: 5, name: "Shiva", studentId: "5678901", email: "shiva@nctorontostudents.ca", role: "student", club: "Soccer Club" }
   ])
   const [filter, setFilter] = useState("")
   const [changedRoles, setChangedRoles] = useState<{[key: number]: 'student' | 'sub-admin'}>({})
   const [userToDelete, setUserToDelete] = useState<User | null>(null)
+  const [subAdminToAssign, setSubAdminToAssign] = useState<User | null>(null)
+  const [selectedClub, setSelectedClub] = useState<string>("")
 
   const handleRoleChange = (userId: number, newRole: 'student' | 'sub-admin') => {
-    setChangedRoles(prev => ({ ...prev, [userId]: newRole }))
+    if (newRole === 'sub-admin') {
+      const user = users.find(u => u.id === userId)
+      if (user) {
+        setSubAdminToAssign(user)
+      }
+    } else {
+      setChangedRoles(prev => ({ ...prev, [userId]: newRole }))
+    }
   }
 
   const handleSaveChanges = () => {
@@ -76,6 +107,21 @@ export default function AdminUserManagement() {
         description: "The user has been removed successfully.",
       })
       setUserToDelete(null)
+    }
+  }
+
+  const handleAssignClub = () => {
+    if (subAdminToAssign && selectedClub) {
+      setUsers(users.map(user => 
+        user.id === subAdminToAssign.id ? { ...user, role: 'sub-admin', club: selectedClub } : user
+      ))
+      setChangedRoles(prev => ({ ...prev, [subAdminToAssign.id]: 'sub-admin' }))
+      setSubAdminToAssign(null)
+      setSelectedClub("")
+      toast({
+        title: "Sub-Admin Assigned",
+        description: `${subAdminToAssign.name} has been assigned as sub-admin to ${selectedClub}.`,
+      })
     }
   }
 
@@ -250,6 +296,31 @@ export default function AdminUserManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!subAdminToAssign} onOpenChange={() => setSubAdminToAssign(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Club to Sub-Admin</DialogTitle>
+            <DialogDescription>
+              Please select a club to assign to {subAdminToAssign?.name} as a sub-admin.
+            </DialogDescription>
+          </DialogHeader>
+          <Select value={selectedClub} onValueChange={setSelectedClub}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select a club" />
+            </SelectTrigger>
+            <SelectContent>
+              {clubs.map((club) => (
+                <SelectItem key={club} value={club}>{club}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button onClick={() => setSubAdminToAssign(null)}>Cancel</Button>
+            <Button onClick={handleAssignClub} disabled={!selectedClub}>Assign Club</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Toaster />
     </div>

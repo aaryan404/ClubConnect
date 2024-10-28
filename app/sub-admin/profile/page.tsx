@@ -11,20 +11,21 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Users, ClipboardList, Calendar, Bell, LogOut, UserPlus } from 'lucide-react'
 import { toast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import Navigation from "@/components/navigation"
 
-interface AdminProfile {
+interface SubAdminProfile {
   name: string
   email: string
   profilePicture: string
   club: string
 }
 
-export default function AdminProfilePage() {
-  const [profile, setProfile] = useState<AdminProfile>({
-    name: "Aaryan Khatri",
-    email: "aryan.khatri@niagaracollegetoronto.ca",
+export default function SubAdminProfilePage() {
+  const [profile, setProfile] = useState<SubAdminProfile>({
+    name: "Om Patel",
+    email: "om.patel@niagaracollegetoronto.ca",
     profilePicture: "/placeholder.svg",
-    club: "Chess Club",
+    club: "cheese club",
   })
   const [isEditing, setIsEditing] = useState(false)
 
@@ -55,56 +56,7 @@ export default function AdminProfilePage() {
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md flex flex-col">
-        <div className="p-4 flex justify-between items-center border-b">
-          <h1 className="text-xl font-bold">ClubConnect</h1>
-          <Image
-            src="/images/logo/favIcon.svg"
-            alt="ClubConnect Logo"
-            width={40}
-            height={40}
-            className="rounded-full"
-          />
-        </div>
-        <div className="p-4 flex-grow">
-          <Link href="/admin/profile" className="flex items-center space-x-4 mb-6 hover:bg-gray-100 rounded p-2">
-            <Avatar>
-              <AvatarImage src={profile.profilePicture} alt="Admin" />
-              <AvatarFallback>AK</AvatarFallback>
-            </Avatar>
-            <div>
-              <h2 className="text-lg font-semibold">{profile.name}</h2>
-              <p className="text-sm text-gray-500">Admin</p>
-            </div>
-          </Link>
-          <nav className="space-y-2">
-            <Link href="/admin/dashboard" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Users size={20} />
-              <span>Dashboard</span>
-            </Link>
-            <Link href="/admin/users" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <UserPlus size={20} />
-              <span>User Management</span>
-            </Link>
-            <Link href="/admin/clubs" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <ClipboardList size={20} />
-              <span>Club Management</span>
-            </Link>
-            <Link href="/admin/events" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Calendar size={20} />
-              <span>Event Management</span>
-            </Link>
-            <Link href="/admin/announcements" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Bell size={20} />
-              <span>Announcements</span>
-            </Link>
-            <Link href="/auth/signin" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <LogOut size={20} />
-              <span>Logout</span>
-            </Link>
-          </nav>
-        </div>
-      </aside>
+      <Navigation active={'profile'}/>
 
       {/* Main content */}
       <main className="flex-1 p-8 overflow-y-auto">
@@ -112,14 +64,14 @@ export default function AdminProfilePage() {
         
         <Card className="w-full max-w-2xl mx-auto">
           <CardHeader>
-            <CardTitle>Admin Profile Information</CardTitle>
-            <CardDescription>View and edit your admin profile</CardDescription>
+            <CardTitle>Sub-Admin Profile Information</CardTitle>
+            <CardDescription>View and edit your sub-admin profile</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-center mb-6">
               <Avatar className="w-24 h-24">
                 <AvatarImage src={profile.profilePicture} alt="Profile Picture" />
-                <AvatarFallback>AK</AvatarFallback>
+                <AvatarFallback>OP</AvatarFallback>
               </Avatar>
             </div>
             {isEditing && (
@@ -151,7 +103,8 @@ export default function AdminProfilePage() {
                 name="email"
                 type="email"
                 value={profile.email}
-                disabled={true}
+                onChange={handleInputChange}
+                disabled={!isEditing}
               />
             </div>
             <div className="space-y-2">

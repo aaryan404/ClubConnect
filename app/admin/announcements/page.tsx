@@ -34,11 +34,22 @@ interface Announcement {
   id: number
   title: string
   content: string
-  target: 'global' | 'college' | string
+  target: 'global' | string
   date: string
 }
 
-const clubs = ["Chess Club", "Debate Society", "Drama Club", "Music Club", "Sports Club"]
+const clubs = [
+  "NCT Coding Club",
+  "NCT Robotics Club",
+  "NCT E-Sports Club",
+  "NCT Boardgames Club",
+  "NCT Book Club",
+  "NCT Cricket Club",
+  "Basketball Club",
+  "Volleyball Club",
+  "Badminton Club",
+  "Soccer Club"
+]
 
 export default function AdminAnnouncementsPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
@@ -204,7 +215,6 @@ export default function AdminAnnouncementsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="global">Global</SelectItem>
-                  <SelectItem value="college">College general events</SelectItem>
                   {clubs.map(club => (
                     <SelectItem key={club} value={club}>{club}</SelectItem>
                   ))}
@@ -238,11 +248,6 @@ export default function AdminAnnouncementsPage() {
                         <>
                           <Globe className="h-4 w-4 mr-1" />
                           Global
-                        </>
-                      ) : announcement.target === 'college' ? (
-                        <>
-                          <UsersIcon className="h-4 w-4 mr-1" />
-                          College general events
                         </>
                       ) : (
                         <>

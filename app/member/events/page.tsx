@@ -1,14 +1,11 @@
 "use client"
 
 import { useState } from 'react'
-import Link from 'next/link'
 import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Users, ClipboardList, Calendar, Bell, LogOut, Settings, Globe, UserPlus, UserMinus } from 'lucide-react'
+import { UserPlus, UserMinus } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import Navigation from '@/components/navigation'
+import Navigation from '@/components/studentNavigation'
 
 // Helper function to generate random dates in 2024
 const randomDate2024 = () => {
@@ -153,7 +150,7 @@ export default function EventsPage() {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      <Navigation active={'events'}/>
+      <Navigation active="events" />
       <main className="flex-1 p-8 overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">Events</h1>

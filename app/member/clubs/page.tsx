@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, ClipboardList, Calendar, Bell, LogOut, Settings, UserPlus, UserMinus } from 'lucide-react'
+import { UserPlus, UserMinus } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import Navigation from '@/components/navigation'
+import Navigation from '@/components/studentNavigation'
 import confetti from 'canvas-confetti'
 
 const allClubs = [
@@ -133,7 +133,7 @@ export default function ClubsPage() {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      <Navigation active={'clubs'}/>
+      <Navigation active="clubs" />
       
       <main className="flex-1 p-8 overflow-y-auto">
         <h1 className="text-3xl font-bold mb-6">Clubs</h1>

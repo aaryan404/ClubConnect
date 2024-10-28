@@ -1,29 +1,40 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
-// Placeholder data for clubs
+// Updated clubs data
 const clubs = [
-  { name: "Photography Club", logo: "/placeholder.svg", description: "Capture moments and create memories" },
-  { name: "Debate Society", logo: "/placeholder.svg", description: "Sharpen your argumentation skills" },
-  { name: "Coding Club", logo: "/placeholder.svg", description: "Build the future with code" },
-  { name: "Sports Club", logo: "/placeholder.svg", description: "Stay active and compete" },
+  { name: "NCT Coding Club", logo: "/clubs logos/coding.png", description: "Build the future with code" },
+  { name: "NCT Robotics Club", logo: "/clubs logos/robotics.png", description: "Innovate with robotics and automation" },
+  { name: "NCT E-Sports Club", logo: "/clubs logos/e-sports.png", description: "Compete in the digital arena" },
+  { name: "NCT Boardgames Club", logo: "/clubs logos/boardgames.png", description: "Strategy and fun with boardgames" },
+  { name: "NCT Book Club", logo: "/clubs logos/book.png", description: "Explore worlds through literature" },
+  { name: "NCT Cricket Club", logo: "/clubs logos/cricket.png", description: "Play the gentleman's game" },
+  { name: "NCT Basketball Club", logo: "/clubs logos/basketball.png", description: "Shoot hoops and build teamwork" },
+  { name: "NCT Volleyball Club", logo: "/clubs logos/volleyball.png", description: "Spike your way to victory" },
+  { name: "NCT Badminton Club", logo: "/clubs logos/badminton.png", description: "Master the shuttlecock" },
+  { name: "NCT Soccer Club", logo: "/clubs logos/soccer.png", description: "The beautiful game awaits" },
+  { name: "NCT Foodie Club", logo: "/clubs logos/foodie.png", description: "Explore your passion in food" },
 ]
 
 // Placeholder data for slider images
 const sliderImages = [
-  "/placeholder.svg?height=400&width=800",
-  "/placeholder.svg?height=400&width=800",
-  "/placeholder.svg?height=400&width=800",
+  "/images/about-mobile.jpg",
+  "/images/news-mobile.jpg",
+  "/images/nct2.png",
 ]
 
 export default function LandingPage() {
   const [currentSlide, setCurrentSlide] = useState(0)
+  const sliderRef = useRef<HTMLDivElement>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [startX, setStartX] = useState(0)
+  const [scrollLeft, setScrollLeft] = useState(0)
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -32,14 +43,36 @@ export default function LandingPage() {
     return () => clearInterval(timer)
   }, [])
 
+  const handleDragStart = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+    setIsDragging(true)
+    const pageX = 'touches' in e ? e.touches[0].pageX : e.pageX
+    setStartX(pageX - (sliderRef.current?.offsetLeft || 0))
+    setScrollLeft(sliderRef.current?.scrollLeft || 0)
+  }
+
+  const handleDragEnd = () => {
+    setIsDragging(false)
+  }
+
+  const handleDrag = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+    if (!isDragging) return
+    e.preventDefault()
+    const pageX = 'touches' in e ? e.touches[0].pageX : e.pageX
+    const x = pageX - (sliderRef.current?.offsetLeft || 0)
+    const walk = (x - startX) * 2
+    if (sliderRef.current) {
+      sliderRef.current.scrollLeft = scrollLeft - walk
+    }
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Header */}
       <header className="bg-white shadow-md">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-4">
-            <Image src="/placeholder.svg" alt="NCT Logo" width={50} height={50} />
-            <h1 className="text-2xl font-bold">NCT ClubConnect</h1>
+            <Image src="/images/logo/favicon.svg" alt="NCT Logo" width={50} height={50} />
+            <h1 className="text-2xl font-bold">ClubConnect</h1>
           </div>
           <div className="space-x-4">
             <Button variant="outline" asChild>
@@ -54,7 +87,7 @@ export default function LandingPage() {
 
       <main className="flex-grow">
         {/* Image Slider */}
-        <div className="relative h-[400px] overflow-hidden">
+        <div className="relative h-[520px] overflow-hidden">
           {sliderImages.map((src, index) => (
             <Image
               key={index}
@@ -97,19 +130,34 @@ export default function LandingPage() {
             </p>
             <div className="text-center">
               <Button asChild>
-                <Link href="/signin">Join Now</Link>
+                <Link href="/auth/signin">Join Now</Link>
               </Button>
             </div>
           </div>
         </section>
 
-        {/* Club Cards */}
+        {/* Club Cards Slider */}
         <section className="py-16">
           <div className="container mx-auto px-4">
             <h2 className="text-3xl font-bold mb-8 text-center">Our Clubs</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div 
+              ref={sliderRef}
+              className="flex overflow-x-auto space-x-4 pb-4 cursor-grab select-none"
+              onMouseDown={handleDragStart}
+              onMouseLeave={handleDragEnd}
+              onMouseUp={handleDragEnd}
+              onMouseMove={handleDrag}
+              onTouchStart={handleDragStart}
+              onTouchEnd={handleDragEnd}
+              onTouchMove={handleDrag}
+              style={{
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
               {clubs.map((club, index) => (
-                <Card key={index}>
+                <Card key={index} className="flex-shrink-0 w-64 bg-gradient-to-br from-white to-gray-100 transition-all duration-300 hover:shadow-lg">
                   <CardHeader>
                     <Image src={club.logo} alt={`${club.name} Logo`} width={100} height={100} className="mx-auto" />
                     <CardTitle className="text-center">{club.name}</CardTitle>
@@ -117,13 +165,13 @@ export default function LandingPage() {
                   <CardContent>
                     <CardDescription>{club.description}</CardDescription>
                   </CardContent>
-                  <CardFooter className="justify-center">
-                    <Button asChild>
-                      <Link href="/signin">Join Club</Link>
-                    </Button>
-                  </CardFooter>
                 </Card>
               ))}
+            </div>
+            <div className="mt-8 text-center">
+              <Button asChild>
+                <Link href="/auth/signin">Join Clubs</Link>
+              </Button>
             </div>
           </div>
         </section>
@@ -153,7 +201,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="mt-8 text-center">
-            <p>&copy; 2023 NCT ClubConnect. All rights reserved.</p>
+            <p>&copy; 2024 NCT ClubConnect. All rights reserved.</p>
           </div>
         </div>
       </footer>

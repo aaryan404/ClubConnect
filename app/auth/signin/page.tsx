@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { toast } from "@/hooks/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { Eye, EyeOff } from 'lucide-react'
 
 export default function SignInPage() {
@@ -14,22 +14,21 @@ export default function SignInPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
+  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const { toast } = useToast()
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {}
 
-    // Validate identifier (student ID, string, or email)
     if (identifier.trim() === '') {
       newErrors.identifier = "ID is required"
     } else if (!/^\d{7}$/.test(identifier) && !identifier.includes('@')) {
-      // If it's not a 7-digit number and not an email, it's treated as a username
       if (identifier.length < 3) {
         newErrors.identifier = "Username must be at least 3 characters long"
       }
     }
 
-    // Validate password is not empty
     if (password.trim() === '') {
       newErrors.password = "Password is required"
     }
@@ -42,17 +41,38 @@ export default function SignInPage() {
     e.preventDefault()
     
     if (validateForm()) {
-      // Here you would typically send a request to your backend API
-      // For now, we'll just simulate a successful signin
-      console.log('Signin data:', { identifier, password })
-      
-      toast({
-        title: "Signed in successfully.",
-        description: "Welcome back to ClubConnect!",
-      })
-      
-      // Redirect to dashboard or home page
-      router.push('/dashboard')
+      setIsLoading(true)
+      try {
+        const response = await fetch('/api/auth/super_admin/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ adminId: identifier, password }),
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || 'An error occurred during sign in')
+        }
+
+        toast({
+          title: "Signed in successfully",
+          description: "Welcome back to ClubConnect!",
+        })
+
+        router.push('/super_admin')
+      } catch (error) {
+        console.error('Login failed:', error)
+        toast({
+          title: "Sign in failed",
+          description: error instanceof Error ? error.message : "An unexpected error occurred",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -98,7 +118,9 @@ export default function SignInPage() {
             </div>
             {errors.password && <p className="text-sm text-red-500">{errors.password}</p>}
           </div>
-          <Button type="submit" className="w-full">Sign In</Button>
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? 'Signing In...' : 'Sign In'}
+          </Button>
         </form>
         <div className="mt-4 text-center text-sm">
           <Link href="/forgot-password" className="text-blue-600 hover:underline">

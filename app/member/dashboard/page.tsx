@@ -1,13 +1,12 @@
 "use client"
 
-import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Users, ClipboardList, Calendar, Bell, LogOut, Settings, TrendingUp } from 'lucide-react'
 import { Button } from "@/components/ui/button"
-import Navigation from '@/components/navigation'
+import Navigation from '@/components/studentNavigation'
 
 // Mock data for recent announcements (replace with actual data fetching in a real application)
 const recentAnnouncements = [
@@ -68,22 +67,7 @@ const trendingClubs = [
   },
 ]
 
-export default function SubAdminDashboard() {
-  const [isMobile, setIsMobile] = useState(false)
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
-
-    handleResize()
-    window.addEventListener('resize', handleResize)
-
-    return () => {
-      window.removeEventListener('resize', handleResize)
-    }
-  }, [])
-
+export default function StudentDashboard() {
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
@@ -91,13 +75,13 @@ export default function SubAdminDashboard() {
 
       {/* Main content */}
       <main className="flex-1 p-8 overflow-y-auto">
-        <h1 className="text-3xl font-bold mb-6">Sub-Admin Dashboard</h1>
+        <h1 className="text-3xl font-bold mb-6">Student Dashboard</h1>
         
         <Card className="mb-8">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Recent Announcements</CardTitle>
             <Button variant="outline" asChild>
-              <Link href="/sub-admin/announcements">View All</Link>
+              <Link href="/student/announcements">View All</Link>
             </Button>
           </CardHeader>
           <CardContent>
@@ -112,12 +96,12 @@ export default function SubAdminDashboard() {
                   </CardHeader>
                   <CardContent>
                     {announcement.image && (
-                      <div className={`${isMobile ? 'w-full h-[200px]' : 'w-[500px] h-[300px]'} mb-4 overflow-hidden`}>
+                      <div className="w-[500px] h-[300px] mb-4 overflow-hidden">
                         <Image
                           src={announcement.image}
                           alt={announcement.title}
-                          width={isMobile ? 300 : 500}
-                          height={isMobile ? 200 : 300}
+                          width={500}
+                          height={300}
                           className="rounded-md object-cover w-full h-full"
                         />
                       </div>
@@ -135,7 +119,7 @@ export default function SubAdminDashboard() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Popular Events</CardTitle>
               <Button variant="outline" asChild>
-                <Link href="/sub-admin/events">View All Events</Link>
+                <Link href="/student/events">View All Events</Link>
               </Button>
             </CardHeader>
             <CardContent>
@@ -159,7 +143,7 @@ export default function SubAdminDashboard() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Trending Clubs</CardTitle>
               <Button variant="outline" asChild>
-                <Link href="/sub-admin/clubs">View All Clubs</Link>
+                <Link href="/student/clubs">View All Clubs</Link>
               </Button>
             </CardHeader>
             <CardContent>
