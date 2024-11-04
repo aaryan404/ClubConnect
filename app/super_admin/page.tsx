@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { addAdmin, getAdmins, updateAdmin, deleteAdmin, initiatePasswordReset } from "@/app/actions/admin"
+import { addAdmin, getAdmins, updateAdmin, deleteAdmin, getAdminPassword, updateAdminPassword } from "@/app/actions/admin"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 type Admin = {
@@ -34,6 +34,8 @@ export default function SuperAdminDashboard() {
   const [newAdminEmail, setNewAdminEmail] = useState("")
   const [newAdminPassword, setNewAdminPassword] = useState("")
   const [editingAdmin, setEditingAdmin] = useState<Admin | null>(null)
+  const [editingPassword, setEditingPassword] = useState<{ id: string, password: string } | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientComponentClient()
@@ -43,7 +45,9 @@ export default function SuperAdminDashboard() {
   }, [])
 
   const fetchAdmins = async () => {
+    setIsLoading(true)
     const result = await getAdmins()
+    setIsLoading(false)
     if (result.success) {
       if (result.data) {
         setAdmins(result.data)
@@ -60,7 +64,9 @@ export default function SuperAdminDashboard() {
   const handleAddAdmin = async (e: React.FormEvent) => {
     e.preventDefault()
     if (newAdminEmail && newAdminPassword) {
+      setIsLoading(true)
       const result = await addAdmin(newAdminEmail, newAdminPassword)
+      setIsLoading(false)
       if (result.success) {
         toast({
           title: "Admin Added",
@@ -80,7 +86,9 @@ export default function SuperAdminDashboard() {
   }
 
   const handleDeleteAdmin = async (id: string) => {
+    setIsLoading(true)
     const result = await deleteAdmin(id)
+    setIsLoading(false)
     if (result.success) {
       toast({
         title: "Admin Deleted",
@@ -102,7 +110,9 @@ export default function SuperAdminDashboard() {
 
   const handleSaveEdit = async () => {
     if (editingAdmin) {
+      setIsLoading(true)
       const result = await updateAdmin(editingAdmin.id, editingAdmin.email)
+      setIsLoading(false)
       if (result.success) {
         toast({
           title: "Admin Updated",
@@ -124,13 +134,12 @@ export default function SuperAdminDashboard() {
     setEditingAdmin(null)
   }
 
-  const handleInitiatePasswordReset = async (email: string) => {
-    const result = await initiatePasswordReset(email)
+  const handleEditPassword = async (admin: Admin) => {
+    setIsLoading(true)
+    const result = await getAdminPassword(admin.id)
+    setIsLoading(false)
     if (result.success) {
-      toast({
-        title: "Password Reset Initiated",
-        description: `Reset token: ${result.resetToken}`,
-      })
+      setEditingPassword({ id: admin.id, password: '' })
     } else {
       toast({
         title: "Error",
@@ -138,6 +147,31 @@ export default function SuperAdminDashboard() {
         variant: "destructive",
       })
     }
+  }
+
+  const handleSavePassword = async () => {
+    if (editingPassword) {
+      setIsLoading(true)
+      const result = await updateAdminPassword(editingPassword.id, editingPassword.password)
+      setIsLoading(false)
+      if (result.success) {
+        toast({
+          title: "Password Updated",
+          description: result.message,
+        })
+        setEditingPassword(null)
+      } else {
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive",
+        })
+      }
+    }
+  }
+
+  const handleCancelPasswordEdit = () => {
+    setEditingPassword(null)
   }
 
   const handleLogout = async () => {
@@ -199,8 +233,6 @@ export default function SuperAdminDashboard() {
                       required
                     />
                   </div>
-                  {/* this section is for checking the pass keys in the whole function and cross check the application of the 
-                  function in thne system, this will also evulate the use of the user in the password in the database so that it is implemented */}
                   <div className="space-y-2">
                     <Label htmlFor="adminPassword">New Admin Password</Label>
                     <Input
@@ -211,7 +243,9 @@ export default function SuperAdminDashboard() {
                       required
                     />
                   </div>
-                  <Button type="submit">Add Admin</Button>
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? 'Adding...' : 'Add Admin'}
+                  </Button>
                 </form>
               </CardContent>
             </Card>
@@ -224,72 +258,94 @@ export default function SuperAdminDashboard() {
                 <CardDescription>Manage existing admin accounts</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {admins.map((admin) => (
-                    <div key={admin.id} className="flex items-center justify-between bg-white p-4 rounded-md shadow">
-                      {editingAdmin && editingAdmin.id === admin.id ? (
-                        <div className="flex-grow mr-4">
-                          <Input
-                            value={editingAdmin.email}
-                            onChange={(e) => setEditingAdmin({...editingAdmin, email: e.target.value})}
-                            className="mb-2"
-                          />
-                        </div>
-                      ) : (
-                        <div>
-                          <p><strong>Email:</strong> {admin.email}</p>
-                        </div>
-                      )}
-                      <div className="flex space-x-2">
+                {isLoading ? (
+                  <p className="text-center">Loading...</p>
+                ) : (
+                  <div className="space-y-4">
+                    {admins.map((admin) => (
+                      <div key={admin.id} className="flex items-center justify-between bg-white p-4 rounded-md shadow">
                         {editingAdmin && editingAdmin.id === admin.id ? (
-                          <>
-                            <Button variant="outline" size="icon" onClick={handleSaveEdit}>
-                              <Check className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="icon" onClick={handleCancelEdit}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </>
+                          <div className="flex-grow mr-4">
+                            <Input
+                              value={editingAdmin.email}
+                              onChange={(e) => setEditingAdmin({...editingAdmin, email: e.target.value})}
+                              className="mb-2"
+                            />
+                          </div>
                         ) : (
-                          <>
-                          
-                            <Button variant="outline" size="icon" onClick={() => handleEditAdmin(admin)}>
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="icon" onClick={() => handleInitiatePasswordReset(admin.email)}>
-                              <Key className="h-4 w-4" />
-                            </Button>
-                          </>
+                          <div>
+                            <p><strong>Email:</strong> {admin.email}</p>
+                          </div>
                         )}
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="destructive" size="icon">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Are you sure you want to delete this admin?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the admin account.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteAdmin(admin.id)}>
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        {editingPassword && editingPassword.id === admin.id ? (
+                          <div className="flex-grow mr-4">
+                            <Input
+                              type="password"
+                              value={editingPassword.password}
+                              onChange={(e) => setEditingPassword({...editingPassword, password: e.target.value})}
+                              className="mb-2"
+                              placeholder="New password"
+                            />
+                            <div className="flex space-x-2">
+                              <Button variant="outline" size="sm" onClick={handleSavePassword} disabled={isLoading}>
+                                Save Password
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={handleCancelPasswordEdit} disabled={isLoading}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex space-x-2">
+                            {editingAdmin && editingAdmin.id === admin.id ? (
+                              <>
+                                <Button variant="outline" size="icon" onClick={handleSaveEdit} disabled={isLoading}>
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                                <Button variant="outline" size="icon" onClick={handleCancelEdit} disabled={isLoading}>
+                                  <X className="h-4  w-4" />
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button variant="outline" size="icon" onClick={() => handleEditAdmin(admin)} disabled={isLoading}>
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                                <Button variant="outline" size="icon" onClick={() => handleEditPassword(admin)} disabled={isLoading}>
+                                  <Key className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="icon" disabled={isLoading}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Are you sure you want to delete this admin?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This action cannot be undone. This will permanently delete the admin account.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDeleteAdmin(admin.id)}>
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
-                  {admins.length === 0 && (
-                    
-                    <p className="text-gray-500 text-center">No admins added yet.</p>
-                  )}
-                </div>
+                    ))}
+                    {admins.length === 0 && (
+                      <p className="text-gray-500 text-center">No admins added yet.</p>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
