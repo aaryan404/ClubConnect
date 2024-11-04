@@ -1,9 +1,8 @@
-"use client"
+'use client'
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Trash2, Edit2, Check, X } from "lucide-react"
-
+import { Trash2, Edit2, Check, X, Key } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,12 +19,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { addAdmin, getAdmins, updateAdmin, deleteAdmin, initiatePasswordReset } from "@/app/actions/admin"
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 type Admin = {
   id: string
   email: string
-  password: string
 }
 
 export default function SuperAdminDashboard() {
@@ -33,73 +34,89 @@ export default function SuperAdminDashboard() {
   const [newAdminEmail, setNewAdminEmail] = useState("")
   const [newAdminPassword, setNewAdminPassword] = useState("")
   const [editingAdmin, setEditingAdmin] = useState<Admin | null>(null)
-  const [deleteConfirmation, setDeleteConfirmation] = useState<string | null>(null)
   const router = useRouter()
   const { toast } = useToast()
+  const supabase = createClientComponentClient()
 
-  const handleAddAdmin = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (newAdminEmail && newAdminPassword) {
-      // Check if an admin with the same email already exists
-      const existingAdmin = admins.find(admin => admin.email === newAdminEmail)
-      if (existingAdmin) {
-        toast({
-          title: "Error",
-          description: `An admin with the email ${newAdminEmail} already exists.`,
-          variant: "destructive",
-        })
-        return
-      }
+  useEffect(() => {
+    fetchAdmins()
+  }, [])
 
-      const newAdmin: Admin = {
-        id: Math.random().toString(36).substr(2, 9),
-        email: newAdminEmail,
-        password: newAdminPassword,
+  const fetchAdmins = async () => {
+    const result = await getAdmins()
+    if (result.success) {
+      if (result.data) {
+        setAdmins(result.data)
       }
-      setAdmins([...admins, newAdmin])
-      setNewAdminEmail("")
-      setNewAdminPassword("")
+    } else {
       toast({
-        title: "Admin Added",
-        description: `New admin (${newAdminEmail}) has been added successfully.`,
+        title: "Error",
+        description: result.message,
+        variant: "destructive",
       })
     }
   }
 
-  const handleDeleteAdmin = (id: string) => {
-    setAdmins(admins.filter(admin => admin.id !== id))
-    setDeleteConfirmation(null)
-    toast({
-      title: "Admin Deleted",
-      description: "The admin has been removed successfully.",
-    })
+  const handleAddAdmin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (newAdminEmail && newAdminPassword) {
+      const result = await addAdmin(newAdminEmail, newAdminPassword)
+      if (result.success) {
+        toast({
+          title: "Admin Added",
+          description: result.message,
+        })
+        setNewAdminEmail("")
+        setNewAdminPassword("")
+        fetchAdmins()
+      } else {
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive",
+        })
+      }
+    }
+  }
+
+  const handleDeleteAdmin = async (id: string) => {
+    const result = await deleteAdmin(id)
+    if (result.success) {
+      toast({
+        title: "Admin Deleted",
+        description: result.message,
+      })
+      fetchAdmins()
+    } else {
+      toast({
+        title: "Error",
+        description: result.message,
+        variant: "destructive",
+      })
+    }
   }
 
   const handleEditAdmin = (admin: Admin) => {
     setEditingAdmin(admin)
   }
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (editingAdmin) {
-      // Check if the new email already exists (excluding the current admin being edited)
-      const emailExists = admins.some(admin => admin.email === editingAdmin.email && admin.id !== editingAdmin.id)
-      if (emailExists) {
+      const result = await updateAdmin(editingAdmin.id, editingAdmin.email)
+      if (result.success) {
+        toast({
+          title: "Admin Updated",
+          description: result.message,
+        })
+        setEditingAdmin(null)
+        fetchAdmins()
+      } else {
         toast({
           title: "Error",
-          description: `An admin with the email ${editingAdmin.email} already exists.`,
+          description: result.message,
           variant: "destructive",
         })
-        return
       }
-
-      setAdmins(admins.map(admin => 
-        admin.id === editingAdmin.id ? editingAdmin : admin
-      ))
-      setEditingAdmin(null)
-      toast({
-        title: "Admin Updated",
-        description: "The admin details have been updated successfully.",
-      })
     }
   }
 
@@ -107,9 +124,33 @@ export default function SuperAdminDashboard() {
     setEditingAdmin(null)
   }
 
-  const handleLogout = () => {
-    // Redirect to the sign-in page
-    router.push("auth/signin")
+  const handleInitiatePasswordReset = async (email: string) => {
+    const result = await initiatePasswordReset(email)
+    if (result.success) {
+      toast({
+        title: "Password Reset Initiated",
+        description: `Reset token: ${result.resetToken}`,
+      })
+    } else {
+      toast({
+        title: "Error",
+        description: result.message,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to logout",
+        variant: "destructive",
+      })
+    } else {
+      router.push("/auth/signin")
+    }
   }
 
   return (
@@ -158,6 +199,8 @@ export default function SuperAdminDashboard() {
                       required
                     />
                   </div>
+                  {/* this section is for checking the pass keys in the whole function and cross check the application of the 
+                  function in thne system, this will also evulate the use of the user in the password in the database so that it is implemented */}
                   <div className="space-y-2">
                     <Label htmlFor="adminPassword">New Admin Password</Label>
                     <Input
@@ -191,16 +234,10 @@ export default function SuperAdminDashboard() {
                             onChange={(e) => setEditingAdmin({...editingAdmin, email: e.target.value})}
                             className="mb-2"
                           />
-                          <Input
-                            type="password"
-                            value={editingAdmin.password}
-                            onChange={(e) => setEditingAdmin({...editingAdmin, password: e.target.value})}
-                          />
                         </div>
                       ) : (
                         <div>
                           <p><strong>Email:</strong> {admin.email}</p>
-                          <p><strong>Password:</strong> {admin.password}</p>
                         </div>
                       )}
                       <div className="flex space-x-2">
@@ -214,17 +251,42 @@ export default function SuperAdminDashboard() {
                             </Button>
                           </>
                         ) : (
-                          <Button variant="outline" size="icon" onClick={() => handleEditAdmin(admin)}>
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
+                          <>
+                          
+                            <Button variant="outline" size="icon" onClick={() => handleEditAdmin(admin)}>
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="icon" onClick={() => handleInitiatePasswordReset(admin.email)}>
+                              <Key className="h-4 w-4" />
+                            </Button>
+                          </>
                         )}
-                        <Button variant="destructive" size="icon" onClick={() => setDeleteConfirmation(admin.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="icon">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Are you sure you want to delete this admin?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete the admin account.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteAdmin(admin.id)}>
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   ))}
                   {admins.length === 0 && (
+                    
                     <p className="text-gray-500 text-center">No admins added yet.</p>
                   )}
                 </div>
@@ -233,23 +295,6 @@ export default function SuperAdminDashboard() {
           </TabsContent>
         </Tabs>
       </main>
-
-      <AlertDialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this admin?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the admin account.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteConfirmation && handleDeleteAdmin(deleteConfirmation)}>
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <Toaster />
     </div>
