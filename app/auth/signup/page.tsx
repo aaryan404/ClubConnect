@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState } from "react"
 import Link from "next/link"
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
+import { signUp } from "@/app/actions/auth"
 
 export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -29,6 +30,7 @@ export default function SignUpPage() {
     confirmPassword: "",
   })
   const [passwordStrength, setPasswordStrength] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
 
@@ -91,7 +93,6 @@ export default function SignUpPage() {
       isValid = false
     }
     
-
     if (!formData.password) {
       newErrors.password = "Password is required"
       isValid = false
@@ -112,21 +113,49 @@ export default function SignUpPage() {
     return isValid
   }
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (validateForm()) {
-      // Handle form submission logic here
-      console.log("Form submitted", formData)
-      toast({
-        title: "Sign Up Successful",
-        description: "Your account has been created successfully.",
-      })
-    } else {
+    if (!validateForm()) {
       toast({
         title: "Error",
         description: "Please correct the errors in the form.",
         variant: "destructive",
       })
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      const result = await signUp({
+        name: formData.name,
+        email: formData.email,
+        studentId: formData.studentId,
+        password: formData.password,
+      })
+
+      if (result.success) {
+        toast({
+          title: "Sign Up Successful",
+          description: result.message,
+        })
+        router.push('/auth/signin')
+      } else {
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Error during sign up:', error)
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -250,8 +279,8 @@ export default function SignUpPage() {
               </div>
               {errors.confirmPassword && <p className="text-sm text-red-500">{errors.confirmPassword}</p>}
             </div>
-            <Button type="submit" className="w-full">
-              Sign Up
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Signing Up..." : "Sign Up"}
             </Button>
           </form>
         </CardContent>
@@ -259,8 +288,8 @@ export default function SignUpPage() {
           <p className="text-sm text-gray-600">
             Already have an account?{" "}
             <Link href="/auth/signin" className="text-blue-600 hover:underline">
-            Sign In
-          </Link>
+              Sign In
+            </Link>
           </p>
         </CardFooter>
       </Card>

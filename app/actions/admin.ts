@@ -1,8 +1,8 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
-import crypto from 'crypto'
 import bcrypt from 'bcrypt'
+import { z } from 'zod'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -18,11 +18,13 @@ const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
   }
 })
 
+const emailSchema = z.string().email().min(5).max(255)
+
 export async function getAdmins() {
   try {
     const { data, error } = await supabase
       .from('admins')
-      .select('id, email')
+      .select('id, email, name')
 
     if (error) throw error
 
@@ -33,53 +35,88 @@ export async function getAdmins() {
   }
 }
 
-export async function addAdmin(email: string, password: string) {
+export async function addAdmin(name: string, email: string, password: string) {
   try {
-    // Create user in Supabase Auth
-    const { data, error } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true
-    })
+    // Validate email
+    try {
+      const validatedEmail = emailSchema.parse(email);
 
-    if (error) throw error
+      // Check if the user already exists
+      const { data: existingUser, error: existingUserError } = await supabase
+        .from('admins')
+        .select('email')
+        .eq('email', validatedEmail)
+        .single();
 
-    // Hash the password before storing it in the admins table
-    const saltRounds = 10
-    const hashedPassword = await bcrypt.hash(password, saltRounds)
+      if (existingUserError && existingUserError.code !== 'PGRST116') {
+        throw existingUserError;
+      }
 
-    // Add the user to the admins table with the hashed password
-    const { error: insertError } = await supabase
-      .from('admins')
-      .insert({ id: data.user.id, email: data.user.email, password: hashedPassword })
+      if (existingUser) {
+        return { success: false, message: 'User already exists' };
+      }
 
-    if (insertError) throw insertError
+      const { data, error } = await supabase.auth.admin.createUser({
+        email: validatedEmail,
+        password,
+        email_confirm: true
+      })
 
-    return { success: true, message: 'Admin added successfully' }
+      if (error) {
+        if (error.message.includes('email')) {
+          throw new Error('Invalid email address. Please check and try again.')
+        }
+        throw error
+      }
+
+      const saltRounds = 10
+      const hashedPassword = await bcrypt.hash(password, saltRounds)
+
+      const { error: insertError } = await supabase
+        .from('admins')
+        .insert({ id: data.user.id, email: data.user.email, name, password: hashedPassword })
+
+      if (insertError) throw insertError
+
+      return { success: true, message: 'Admin added successfully' }
+    } catch (error) {
+      console.error('Email validation error:', error);
+      return { success: false, message: 'Invalid email address. Please check and try again.' };
+    }
   } catch (error: any) {
     console.error('Error adding admin:', error)
     return { success: false, message: error.message || 'Failed to add admin' }
   }
 }
-
-export async function updateAdmin(id: string, email: string) {
+export async function updateAdmin(id: string, name: string, email: string) {
   try {
-    const { error } = await supabase.auth.admin.updateUserById(
-      id,
-      { email }
-    )
+    // Validate email
+    try {
+      const validatedEmail = emailSchema.parse(email);
+      const { error } = await supabase.auth.admin.updateUserById(
+        id,
+        { email: validatedEmail }
+      )
 
-    if (error) throw error
+      if (error) {
+        if (error.message.includes('email')) {
+          throw new Error('Invalid email address. Please check and try again.')
+        }
+        throw error
+      }
 
-    // Update the email in the admins table
-    const { error: updateError } = await supabase
-      .from('admins')
-      .update({ email })
-      .eq('id', id)
+      const { error: updateError } = await supabase
+        .from('admins')
+        .update({ email: validatedEmail, name })
+        .eq('id', id)
 
-    if (updateError) throw updateError
+      if (updateError) throw updateError
 
-    return { success: true, message: 'Admin updated successfully' }
+      return { success: true, message: 'Admin updated successfully' }
+    } catch (error) {
+      console.error('Email validation error:', error);
+      return { success: false, message: 'Invalid email address. Please check and try again.' };
+    }
   } catch (error: any) {
     console.error('Error updating admin:', error)
     return { success: false, message: error.message || 'Failed to update admin' }
@@ -92,7 +129,6 @@ export async function deleteAdmin(id: string) {
 
     if (error) throw error
 
-    // Remove the user from the admins table
     const { error: deleteError } = await supabase
       .from('admins')
       .delete()
@@ -126,7 +162,6 @@ export async function getAdminPassword(id: string) {
 
 export async function updateAdminPassword(id: string, newPassword: string) {
   try {
-    // Update password in Supabase Auth
     const { error } = await supabase.auth.admin.updateUserById(
       id,
       { password: newPassword }
@@ -134,11 +169,9 @@ export async function updateAdminPassword(id: string, newPassword: string) {
 
     if (error) throw error
 
-    // Hash the new password before storing it in the admins table
     const saltRounds = 10
     const hashedPassword = await bcrypt.hash(newPassword, saltRounds)
 
-    // Update the password in the admins table
     const { error: updateError } = await supabase
       .from('admins')
       .update({ password: hashedPassword })
