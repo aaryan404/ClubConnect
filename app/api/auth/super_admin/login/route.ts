@@ -2,10 +2,9 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
-// Initialize Supabase client with service role key for admin operations
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!, // Use service role key for admin operations
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
   {
     auth: {
       autoRefreshToken: false,
@@ -18,7 +17,8 @@ export async function POST(request: Request) {
   try {
     const { adminId, password } = await request.json()
 
-    // Validate input
+    console.log('Attempting super admin login with ID:', adminId) // For debugging
+
     if (!adminId || !password) {
       return NextResponse.json(
         { error: 'Admin ID and password are required' },
@@ -26,7 +26,16 @@ export async function POST(request: Request) {
       )
     }
 
-    // First, get the admin's email using adminId
+    // Verify that the adminId matches the super admin ID
+    if (adminId !== process.env.NEXT_PUBLIC_SUPER_ADMIN_ID) {
+      console.log('Invalid super admin ID') // For debugging
+      return NextResponse.json(
+        { error: 'Invalid credentials' },
+        { status: 401 }
+      )
+    }
+
+    // Fetch the super admin's email from the database
     const { data: adminData, error: adminError } = await supabase
       .from('super_admins')
       .select('email')
@@ -34,6 +43,7 @@ export async function POST(request: Request) {
       .single()
 
     if (adminError || !adminData) {
+      console.log('Error fetching super admin data:', adminError) // For debugging
       return NextResponse.json(
         { error: 'Invalid credentials' },
         { status: 401 }
@@ -41,45 +51,31 @@ export async function POST(request: Request) {
     }
 
     // Sign in using Supabase Auth
-    const { data: { session }, error: signInError } = await supabase.auth.signInWithPassword({
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
       email: adminData.email,
       password: password,
     })
 
-    if (signInError || !session) {
+    if (signInError || !data.session) {
+      console.log('Sign in error:', signInError) // For debugging
       return NextResponse.json(
         { error: 'Invalid credentials' },
         { status: 401 }
       )
     }
 
-    // Verify the user has super_admin role in RLS policies
-    const { data: roleCheck, error: roleError } = await supabase
-      .from('super_admins')
-      .select('role')
-      .eq('admin_id', adminId)
-      .single()
-
-    if (roleError || !roleCheck || roleCheck.role !== 'super_admin') {
-      await supabase.auth.signOut()
-      return NextResponse.json(
-        { error: 'Unauthorized access' },
-        { status: 403 }
-      )
-    }
-
     // Set the session cookies
     const cookieStore = cookies()
     
-    cookieStore.set('sb-access-token', session.access_token, {
+    cookieStore.set('sb-access-token', data.session.access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: session.expires_in,
+      maxAge: data.session.expires_in,
       path: '/',
     })
 
-    cookieStore.set('sb-refresh-token', session.refresh_token!, {
+    cookieStore.set('sb-refresh-token', data.session.refresh_token!, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
@@ -87,11 +83,13 @@ export async function POST(request: Request) {
       path: '/',
     })
 
+    console.log('Super admin login successful') // For debugging
+
     return NextResponse.json(
       { 
         message: 'Logged in successfully',
         user: {
-          id: session.user.id,
+          id: data.user.id,
           adminId,
           role: 'super_admin'
         }

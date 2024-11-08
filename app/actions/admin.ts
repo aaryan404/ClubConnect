@@ -35,57 +35,77 @@ export async function getAdmins() {
   }
 }
 
+const adminSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters long'),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters long')
+})
 export async function addAdmin(name: string, email: string, password: string) {
   try {
-    // Validate email
-    try {
-      const validatedEmail = emailSchema.parse(email);
+    // Validate input
+    const validatedInput = adminSchema.parse({ name, email, password })
 
-      // Check if the user already exists
-      const { data: existingUser, error: existingUserError } = await supabase
-        .from('admins')
-        .select('email')
-        .eq('email', validatedEmail)
-        .single();
+    // Check if the user already exists
+    const { data: existingUser, error: existingUserError } = await supabase
+      .from('admins')
+      .select('email')
+      .eq('email', validatedInput.email)
+      .single()
 
-      if (existingUserError && existingUserError.code !== 'PGRST116') {
-        throw existingUserError;
-      }
+    if (existingUserError && existingUserError.code !== 'PGRST116') {
+      throw new Error('Error checking existing user')
+    }
 
-      if (existingUser) {
-        return { success: false, message: 'User already exists' };
-      }
+    if (existingUser) {
+      return { success: false, message: 'An admin with this email already exists' }
+    }
 
-      const { data, error } = await supabase.auth.admin.createUser({
-        email: validatedEmail,
-        password,
-        email_confirm: true
+    // Create user in Supabase Auth
+    const { data, error: createUserError } = await supabase.auth.admin.createUser({
+      email: validatedInput.email,
+      password: validatedInput.password,
+      email_confirm: true
+    })
+
+    if (createUserError) {
+      throw new Error(createUserError.message)
+    }
+
+    if (!data.user) {
+      throw new Error('Failed to create user')
+    }
+
+    // Generate admin_id
+    const admin_id = `ADMIN-${data.user.id.substring(0, 8)}`
+
+    // Hash password
+    const saltRounds = 10
+    const hashedPassword = await bcrypt.hash(validatedInput.password, saltRounds)
+
+    // Insert admin into admins table
+    const { error: insertError } = await supabase
+      .from('admins')
+      .insert({ 
+        id: data.user.id, 
+        admin_id: admin_id,
+        email: data.user.email, 
+        name: validatedInput.name, 
+        password: hashedPassword 
       })
 
-      if (error) {
-        if (error.message.includes('email')) {
-          throw new Error('Invalid email address. Please check and try again.')
-        }
-        throw error
-      }
-
-      const saltRounds = 10
-      const hashedPassword = await bcrypt.hash(password, saltRounds)
-
-      const { error: insertError } = await supabase
-        .from('admins')
-        .insert({ id: data.user.id, email: data.user.email, name, password: hashedPassword })
-
-      if (insertError) throw insertError
-
-      return { success: true, message: 'Admin added successfully' }
-    } catch (error) {
-      console.error('Email validation error:', error);
-      return { success: false, message: 'Invalid email address. Please check and try again.' };
+    if (insertError) {
+      // If insert fails, delete the created auth user
+      await supabase.auth.admin.deleteUser(data.user.id)
+      throw new Error('Failed to insert admin data')
     }
-  } catch (error: any) {
+
+    return { success: true, message: 'Admin added successfully' }
+  } catch (error) {
     console.error('Error adding admin:', error)
-    return { success: false, message: error.message || 'Failed to add admin' }
+    if (error instanceof z.ZodError) {
+      return { success: false, message: error.errors[0].message }
+    }
+    return { success: false, message: error instanceof Error ? error.message : 'Failed to add admin' }
   }
 }
 export async function updateAdmin(id: string, name: string, email: string) {

@@ -14,22 +14,39 @@ export default function SignInPage() {
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<{ [key: string]: string }>({})
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientComponentClient()
 
+  const validateForm = () => {
+    const newErrors: { [key: string]: string } = {}
+
+    if (identifier.trim() === '') {
+      newErrors.identifier = "ID is required"
+    } else if (!/^\d{7}$/.test(identifier) && !identifier.includes('@')) {
+      if (identifier.length < 3) {
+        newErrors.identifier = "Username must be at least 3 characters long"
+      }
+    }
+
+    if (password.trim() === '') {
+      newErrors.password = "Password is required"
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError(null)
-    setIsLoading(true)
-
-    try {
-      // Check if the identifier is the super admin ID
-      if (identifier === process.env.NEXT_PUBLIC_SUPER_ADMIN_ID) {
-        // Super admin login
-        const response = await fetch('/api/auth/super_admin/login', {
+    
+    if (validateForm()) {
+      setIsLoading(true)
+      try {
+        // First, try to authenticate as a super admin
+        const superAdminResponse = await fetch('/api/auth/super_admin/login', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -37,62 +54,74 @@ export default function SignInPage() {
           body: JSON.stringify({ adminId: identifier, password }),
         })
 
-        const data = await response.json()
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Invalid ID or password')
+        if (superAdminResponse.ok) {
+          const data = await superAdminResponse.json()
+          toast({
+            title: "Signed in successfully",
+            description: "Welcome back, Super Admin!",
+          })
+          router.push('/super_admin')
+          return
         }
 
-        toast({
-          title: "Signed in successfully",
-          description: "Welcome back, Super Admin!",
-        })
+        // If not a super admin, check for regular admin or student
+        let user = null
+        let role = ''
 
-        router.push('/super_admin/dashboard')
-      } else {
-        // Student login
-        // First, get the student's email using their student ID
-        const { data: studentData, error: studentError } = await supabase
-          .from('students')
-          .select('email')
-          .eq('student_id', identifier)
+        // Check admins table
+        const { data: adminData, error: adminError } = await supabase
+          .from('admins')
+          .select('*')
+          .eq('email', identifier)
           .single()
 
-        if (studentError) {
-          throw new Error('Invalid ID or password')
+        if (adminData) {
+          user = adminData
+          role = 'admin'
+        } else {
+          // Check students table
+          const { data: studentData, error: studentError } = await supabase
+            .from('students')
+            .select('*')
+            .eq('student_id', identifier)
+            .single()
+
+          if (studentData) {
+            user = studentData
+            role = 'student'
+          }
         }
 
-        // Now sign in with the retrieved email and provided password
+        if (!user) {
+          throw new Error('User not found')
+        }
+
+        // Authenticate user
         const { data, error } = await supabase.auth.signInWithPassword({
-          email: studentData.email,
+          email: user.email,
           password: password,
         })
 
         if (error) {
-          throw new Error('Invalid ID or password')
+          throw error
         }
 
-        if (data.user) {
-          toast({
-            title: "Signed in successfully",
-            description: "Welcome back to ClubConnect!",
-          })
+        toast({
+          title: "Signed in successfully",
+          description: `Welcome back, ${role === 'admin' ? 'Admin' : 'Student'}!`,
+        })
 
-          router.push('/member/dashboard')
-        } else {
-          throw new Error('Invalid ID or password')
-        }
+        router.push(role === 'admin' ? '/admin/dashboard' : '/member/dashboard')
+      } catch (error) {
+        console.error('Login failed:', error)
+        toast({
+          title: "Sign in failed",
+          description: error instanceof Error ? error.message : "An unexpected error occurred",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
       }
-    } catch (error) {
-      console.error('Login failed:', error)
-      setError('Invalid ID or password')
-      toast({
-        title: "Sign in failed",
-        description: "Invalid ID or password",
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -104,14 +133,9 @@ export default function SignInPage() {
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="p-8 bg-white rounded-lg shadow-md w-96">
         <h1 className="text-2xl font-bold mb-6 text-center">Sign In to ClubConnect</h1>
-        {error && (
-          <div className="mb-4 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
-          </div>
-        )}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="identifier">Student ID or Admin ID</Label>
+            <Label htmlFor="identifier">ID</Label>
             <Input
               id="identifier"
               placeholder="Enter your ID"
@@ -119,6 +143,7 @@ export default function SignInPage() {
               onChange={(e) => setIdentifier(e.target.value)}
               required
             />
+            {errors.identifier && <p className="text-sm text-red-500">{errors.identifier}</p>}
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
@@ -140,6 +165,7 @@ export default function SignInPage() {
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
             </div>
+            {errors.password && <p className="text-sm text-red-500">{errors.password}</p>}
           </div>
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? 'Signing In...' : 'Sign In'}

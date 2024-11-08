@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from "@/components/ui/button"
@@ -16,43 +16,100 @@ import {
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Users, ClipboardList, Calendar, Bell, LogOut, Trash2, UserPlus } from 'lucide-react'
+import { createClub } from "@/app/actions/createClub"
+import { useToast } from "@/hooks/use-toast"
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface Club {
-  id: number
+  id: string
   name: string
   description: string
-  members: number
+  member_count: number
 }
 
 export default function AdminClubManagement() {
-  const [clubs, setClubs] = useState<Club[]>([
-    { id: 1, name: "NCT Coding Club", description: "For coding enthusiasts", members: 25 },
-    { id: 2, name: "NCT Robotics Club", description: "Build and program robots", members: 20 },
-    { id: 3, name: "NCT E-Sports Club", description: "Competitive gaming", members: 30 },
-    { id: 4, name: "NCT Boardgames Club", description: "Strategy and fun with boardgames", members: 15 },
-    { id: 5, name: "NCT Book Club", description: "For book lovers", members: 18 },
-    { id: 6, name: "NCT Cricket Club", description: "Play cricket", members: 22 },
-    { id: 7, name: "Basketball Club", description: "Shoot some hoops", members: 20 },
-    { id: 8, name: "Volleyball Club", description: "Spike and serve", members: 18 },
-    { id: 9, name: "Badminton Club", description: "Racquet sports enthusiasts", members: 16 },
-    { id: 10, name: "Soccer Club", description: "Football for all", members: 24 },
-  ])
+  const [clubs, setClubs] = useState<Club[]>([])
   const [newClub, setNewClub] = useState({ name: "", description: "" })
+  const [isLoading, setIsLoading] = useState(false)
+  const [clubToDelete, setClubToDelete] = useState<Club | null>(null)
+  const { toast } = useToast()
+  const supabase = createClientComponentClient()
 
-  const handleCreateClub = (e: React.FormEvent) => {
-    e.preventDefault()
-    const club: Club = {
-      id: clubs.length + 1,
-      name: newClub.name,
-      description: newClub.description,
-      members: 0,
+  useEffect(() => {
+    fetchClubs()
+  }, [])
+
+  const fetchClubs = async () => {
+    const { data, error } = await supabase
+      .from('clubs')
+      .select('*')
+    
+    if (error) {
+      console.error('Error fetching clubs:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch clubs",
+        variant: "destructive",
+      })
+    } else {
+      setClubs(data || [])
     }
-    setClubs([...clubs, club])
-    setNewClub({ name: "", description: "" })
   }
 
-  const handleDeleteClub = (id: number) => {
-    setClubs(clubs.filter(club => club.id !== id))
+  const handleCreateClub = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    const result = await createClub(newClub.name, newClub.description)
+    if (result.error) {
+      toast({
+        title: "Error",
+        description: result.error,
+        variant: "destructive",
+      })
+    } else {
+      toast({
+        title: "Success",
+        description: "Club created successfully",
+      })
+      setNewClub({ name: "", description: "" })
+      fetchClubs()
+    }
+    setIsLoading(false)
+  }
+
+  const handleDeleteClub = async () => {
+    if (!clubToDelete) return
+
+    const { error } = await supabase
+      .from('clubs')
+      .delete()
+      .eq('id', clubToDelete.id)
+    
+    if (error) {
+      console.error('Error deleting club:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete club",
+        variant: "destructive",
+      })
+    } else {
+      toast({
+        title: "Success",
+        description: "Club deleted successfully",
+      })
+      fetchClubs()
+    }
+    setClubToDelete(null)
   }
 
   return (
@@ -134,7 +191,9 @@ export default function AdminClubManagement() {
                 required
               />
             </div>
-            <Button type="submit">Create Club</Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? 'Creating...' : 'Create Club'}
+            </Button>
           </form>
         </div>
         
@@ -154,12 +213,12 @@ export default function AdminClubManagement() {
                 <TableRow key={club.id}>
                   <TableCell>{club.name}</TableCell>
                   <TableCell>{club.description}</TableCell>
-                  <TableCell>{club.members}</TableCell>
+                  <TableCell>{club.member_count}</TableCell>
                   <TableCell>
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => handleDeleteClub(club.id)}
+                      onClick={() => setClubToDelete(club)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -170,6 +229,22 @@ export default function AdminClubManagement() {
           </Table>
         </div>
       </main>
+
+      <AlertDialog open={!!clubToDelete} onOpenChange={() => setClubToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this club?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the club
+              "{clubToDelete?.name}" and remove all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteClub}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

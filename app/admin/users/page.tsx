@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from "@/components/ui/button"
@@ -36,44 +36,122 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 interface User {
-  id: number
+  id: string
   name: string
-  studentId: string
+  student_id: string
   email: string
   role: 'student' | 'sub-admin'
+}
+
+interface SubAdmin extends User {
   club: string
 }
 
-const clubs = [
-  "NCT Coding Club",
-  "NCT Robotics Club",
-  "NCT E-Sports Club",
-  "NCT Boardgames Club",
-  "NCT Book Club",
-  "NCT Cricket Club",
-  "Basketball Club",
-  "Volleyball Club",
-  "Badminton Club",
-  "Soccer Club"
-]
+interface Club {
+  id: string
+  name: string
+}
 
 export default function AdminUserManagement() {
-  const [users, setUsers] = useState<User[]>([
-    { id: 1, name: "Arpine", studentId: "1234567", email: "arpine@nctorontostudents.ca", role: "student", club: "NCT Coding Club" },
-    { id: 2, name: "Om patel", studentId: "2345678", email: "om@nctorontostudents.ca", role: "student", club: "NCT Robotics Club" },
-    { id: 3, name: "Yadhu", studentId: "3456789", email: "yadhu@nctorontostudents.ca", role: "student", club: "NCT E-Sports Club" },
-    { id: 4, name: "Eber", studentId: "4567890", email: "eber@nctorontostudents.ca", role: "student", club: "NCT Boardgames Club" },
-    { id: 5, name: "Shiva", studentId: "5678901", email: "shiva@nctorontostudents.ca", role: "student", club: "Soccer Club" }
-  ])
+  const [users, setUsers] = useState<User[]>([])
+  const [subAdmins, setSubAdmins] = useState<SubAdmin[]>([])
+  const [clubs, setClubs] = useState<Club[]>([])
   const [filter, setFilter] = useState("")
-  const [changedRoles, setChangedRoles] = useState<{[key: number]: 'student' | 'sub-admin'}>({})
+  const [changedRoles, setChangedRoles] = useState<{[key: string]: 'student' | 'sub-admin'}>({})
   const [userToDelete, setUserToDelete] = useState<User | null>(null)
   const [subAdminToAssign, setSubAdminToAssign] = useState<User | null>(null)
   const [selectedClub, setSelectedClub] = useState<string>("")
+  const [isLoading, setIsLoading] = useState(true)
+  const supabase = createClientComponentClient()
 
-  const handleRoleChange = (userId: number, newRole: 'student' | 'sub-admin') => {
+  useEffect(() => {
+    fetchUsers()
+    fetchSubAdmins()
+    fetchClubs()
+    const channel = supabase
+      .channel('users_and_sub_admins')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, () => {
+        fetchUsers()
+        fetchSubAdmins()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sub_admins' }, () => {
+        fetchSubAdmins()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
+  const fetchUsers = async () => {
+    setIsLoading(true)
+    const { data, error } = await supabase
+      .from('students')
+      .select('*')
+    
+    if (error) {
+      console.error('Error fetching users:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch users",
+        variant: "destructive",
+      })
+    } else {
+      setUsers(data || [])
+    }
+    setIsLoading(false)
+  }
+
+  const fetchSubAdmins = async () => {
+    const { data, error } = await supabase
+      .from('sub_admins')
+      .select(`
+        id,
+        user:students(id, name, student_id, email, role),
+        club:clubs!inner(id, name)
+      `)
+    
+    if (error) {
+      console.error('Error fetching sub-admins:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch sub-admins",
+        variant: "destructive",
+      })
+    } else {
+      setSubAdmins(data?.map((item: any) => ({
+        id: item.user.id,
+        name: item.user.name,
+        student_id: item.user.student_id,
+        email: item.user.email,
+        role: item.user.role,
+        club: item.club.name
+      })) || [])
+    }
+  }
+
+  const fetchClubs = async () => {
+    const { data, error } = await supabase
+      .from('clubs')
+      .select('id, name')
+    
+    if (error) {
+      console.error('Error fetching clubs:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch clubs",
+        variant: "destructive",
+      })
+    } else {
+      setClubs(data || [])
+    }
+  }
+
+  const handleRoleChange = (userId: string, newRole: 'student' | 'sub-admin') => {
     if (newRole === 'sub-admin') {
       const user = users.find(u => u.id === userId)
       if (user) {
@@ -84,11 +162,33 @@ export default function AdminUserManagement() {
     }
   }
 
-  const handleSaveChanges = () => {
-    setUsers(users.map(user => 
-      changedRoles[user.id] ? { ...user, role: changedRoles[user.id] } : user
-    ))
+  const handleSaveChanges = async () => {
+    for (const [userId, newRole] of Object.entries(changedRoles)) {
+      if (newRole === 'student') {
+        const { error } = await supabase
+          .from('students')
+          .update({ role: newRole })
+          .eq('id', userId)
+        
+        if (error) {
+          console.error('Error updating user role:', error)
+          toast({
+            title: "Error",
+            description: `Failed to update role for user ${userId}`,
+            variant: "destructive",
+          })
+        } else {
+          // If changing to student, remove from sub_admins table
+          await supabase
+            .from('sub_admins')
+            .delete()
+            .eq('user_id', userId)
+        }
+      }
+    }
     setChangedRoles({})
+    fetchUsers()
+    fetchSubAdmins()
     toast({
       title: "Changes Saved",
       description: "User roles have been updated successfully.",
@@ -99,37 +199,66 @@ export default function AdminUserManagement() {
     setUserToDelete(user)
   }
 
-  const confirmDeleteUser = () => {
+  const confirmDeleteUser = async () => {
     if (userToDelete) {
-      setUsers(users.filter(user => user.id !== userToDelete.id))
-      toast({
-        title: "User Deleted",
-        description: "The user has been removed successfully.",
-      })
+      const { error } = await supabase
+        .from('students')
+        .delete()
+        .eq('id', userToDelete.id)
+      
+      if (error) {
+        console.error('Error deleting user:', error)
+        toast({
+          title: "Error",
+          description: "Failed to delete user",
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "User Deleted",
+          description: "The user has been removed successfully.",
+        })
+        fetchUsers()
+        fetchSubAdmins()
+      }
       setUserToDelete(null)
     }
   }
 
-  const handleAssignClub = () => {
+  const handleAssignClub = async () => {
     if (subAdminToAssign && selectedClub) {
-      setUsers(users.map(user => 
-        user.id === subAdminToAssign.id ? { ...user, role: 'sub-admin', club: selectedClub } : user
-      ))
-      setChangedRoles(prev => ({ ...prev, [subAdminToAssign.id]: 'sub-admin' }))
-      setSubAdminToAssign(null)
-      setSelectedClub("")
-      toast({
-        title: "Sub-Admin Assigned",
-        description: `${subAdminToAssign.name} has been assigned as sub-admin to ${selectedClub}.`,
-      })
+      try {
+        const { data, error } = await supabase.rpc('assign_sub_admin', {
+          p_user_id: subAdminToAssign.id,
+          p_club_id: selectedClub
+        })
+
+        if (error) throw error
+
+        setChangedRoles(prev => ({ ...prev, [subAdminToAssign.id]: 'sub-admin' }))
+        toast({
+          title: "Sub-Admin Assigned",
+          description: `${subAdminToAssign.name} has been assigned as sub-admin to the selected club.`,
+        })
+        fetchUsers()
+        fetchSubAdmins()
+      } catch (error) {
+        console.error('Error assigning sub-admin:', error)
+        toast({
+          title: "Error",
+          description: "Failed to assign sub-admin. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setSubAdminToAssign(null)
+        setSelectedClub("")
+      }
     }
   }
 
   const filteredUsers = users.filter(user => 
-    user.studentId.includes(filter) || user.name.toLowerCase().includes(filter.toLowerCase())
+    user.student_id.includes(filter) || user.name.toLowerCase().includes(filter.toLowerCase())
   )
-
-  const subAdmins = users.filter(user => user.role === 'sub-admin')
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -207,51 +336,53 @@ export default function AdminUserManagement() {
               <Save className="mr-2 h-4 w-4" /> Save Changes
             </Button>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Student ID</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Club</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>{user.name}</TableCell>
-                  <TableCell>{user.studentId}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                    <Select
-                      value={changedRoles[user.id] || user.role}
-                      onValueChange={(value: 'student' | 'sub-admin') => handleRoleChange(user.id, value)}
-                    >
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Select a role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="student">Student</SelectItem>
-                        <SelectItem value="sub-admin">Sub-Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>{user.club}</TableCell>
-                  <TableCell>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDeleteUser(user)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
+          {isLoading ? (
+            <div className="text-center py-4">Loading users...</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Student ID</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell>{user.name}</TableCell>
+                    <TableCell>{user.student_id}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Select
+                        value={changedRoles[user.id] || user.role}
+                        onValueChange={(value: 'student' | 'sub-admin') => handleRoleChange(user.id, value)}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Select a role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="student">Student</SelectItem>
+                          <SelectItem value="sub-admin">Sub-Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteUser(user)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow-md">
@@ -311,7 +442,7 @@ export default function AdminUserManagement() {
             </SelectTrigger>
             <SelectContent>
               {clubs.map((club) => (
-                <SelectItem key={club} value={club}>{club}</SelectItem>
+                <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
