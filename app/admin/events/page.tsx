@@ -1,15 +1,13 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import Link from 'next/link'
-import Image from 'next/image'
+import { useState, useEffect } from "react"
+import AdminSidebar from "@/components/AdminSidebar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Users, ClipboardList, Calendar, Bell, LogOut, Trash2, Edit, UserPlus, School } from 'lucide-react'
+import { Users, School, Trash2, Edit } from 'lucide-react'
 import { toast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import {
@@ -29,33 +27,69 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 interface Event {
-  id: number
+  id: string
   title: string
   description: string
   date: string
-  category: string
+  club_id: string | null
 }
 
-const clubs = [
-  "NCT Coding Club",
-  "NCT Robotics Club",
-  "NCT E-Sports Club",
-  "NCT Boardgames Club",
-  "NCT Book Club",
-  "NCT Cricket Club",
-  "Basketball Club",
-  "Volleyball Club",
-  "Badminton Club",
-  "Soccer Club"
-]
+interface Club {
+  id: string
+  name: string
+}
 
 export default function AdminEventManagement() {
   const [events, setEvents] = useState<Event[]>([])
-  const [newEvent, setNewEvent] = useState<Event>({ id: 0, title: '', description: '', date: '', category: '' })
+  const [clubs, setClubs] = useState<Club[]>([])
+  const [newEvent, setNewEvent] = useState<Omit<Event, 'id'>>({ title: '', description: '', date: '', club_id: null })
   const [editingEvent, setEditingEvent] = useState<Event | null>(null)
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null)
+  const supabase = createClientComponentClient()
+
+  useEffect(() => {
+    fetchEvents()
+    fetchClubs()
+  }, [])
+
+  async function fetchEvents() {
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .order('date', { ascending: true })
+    
+    if (error) {
+      console.error('Error fetching events:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch events",
+        variant: "destructive",
+      })
+    } else {
+      setEvents(data || [])
+    }
+  }
+
+  async function fetchClubs() {
+    const { data, error } = await supabase
+      .from('clubs')
+      .select('*')
+      .order('name', { ascending: true })
+    
+    if (error) {
+      console.error('Error fetching clubs:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch clubs",
+        variant: "destructive",
+      })
+    } else {
+      setClubs(data || [])
+    }
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -66,23 +100,36 @@ export default function AdminEventManagement() {
     }
   }
 
-  const handleCategoryChange = (value: string) => {
+  const handleClubChange = (value: string) => {
     if (editingEvent) {
-      setEditingEvent({ ...editingEvent, category: value })
+      setEditingEvent({ ...editingEvent, club_id: value === 'college' ? null : value })
     } else {
-      setNewEvent({ ...newEvent, category: value })
+      setNewEvent({ ...newEvent, club_id: value === 'college' ? null : value })
     }
   }
 
-  const handleAddEvent = () => {
-    if (newEvent.title && newEvent.description && newEvent.date && newEvent.category) {
-      const eventToAdd = { ...newEvent, id: Date.now() }
-      setEvents([...events, eventToAdd])
-      setNewEvent({ id: 0, title: '', description: '', date: '', category: '' })
-      toast({
-        title: "Event Added",
-        description: "The event has been added successfully.",
-      })
+  const handleAddEvent = async () => {
+    if (newEvent.title && newEvent.description && newEvent.date) {
+      const { data, error } = await supabase
+        .from('events')
+        .insert([newEvent])
+        .select()
+
+      if (error) {
+        console.error('Error adding event:', error)
+        toast({
+          title: "Error",
+          description: "Failed to add event",
+          variant: "destructive",
+        })
+      } else {
+        setNewEvent({ title: '', description: '', date: '', club_id: null })
+        fetchEvents()
+        toast({
+          title: "Event Added",
+          description: "The event has been added successfully.",
+        })
+      }
     }
   }
 
@@ -90,14 +137,33 @@ export default function AdminEventManagement() {
     setEditingEvent(event)
   }
 
-  const handleUpdateEvent = () => {
+  const handleUpdateEvent = async () => {
     if (editingEvent) {
-      setEvents(events.map(event => event.id === editingEvent.id ? editingEvent : event))
-      setEditingEvent(null)
-      toast({
-        title: "Event Updated",
-        description: "The event has been updated successfully.",
-      })
+      const { error } = await supabase
+        .from('events')
+        .update({
+          title: editingEvent.title,
+          description: editingEvent.description,
+          date: editingEvent.date,
+          club_id: editingEvent.club_id
+        })
+        .eq('id', editingEvent.id)
+
+      if (error) {
+        console.error('Error updating event:', error)
+        toast({
+          title: "Error",
+          description: "Failed to update event",
+          variant: "destructive",
+        })
+      } else {
+        setEditingEvent(null)
+        fetchEvents()
+        toast({
+          title: "Event Updated",
+          description: "The event has been updated successfully.",
+        })
+      }
     }
   }
 
@@ -105,72 +171,34 @@ export default function AdminEventManagement() {
     setEventToDelete(event)
   }
 
-  const confirmDeleteEvent = () => {
+  const confirmDeleteEvent = async () => {
     if (eventToDelete) {
-      setEvents(events.filter(event => event.id !== eventToDelete.id))
-      setEventToDelete(null)
-      toast({
-        title: "Event Deleted",
-        description: "The event has been deleted successfully.",
-      })
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', eventToDelete.id)
+
+      if (error) {
+        console.error('Error deleting event:', error)
+        toast({
+          title: "Error",
+          description: "Failed to delete event",
+          variant: "destructive",
+        })
+      } else {
+        setEventToDelete(null)
+        fetchEvents()
+        toast({
+          title: "Event Deleted",
+          description: "The event has been deleted successfully.",
+        })
+      }
     }
   }
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md flex flex-col">
-        <div className="p-4 flex justify-between items-center border-b">
-          <h1 className="text-xl font-bold">ClubConnect</h1>
-          <Image
-            src="/images/logo/favIcon.svg"
-            alt="ClubConnect Logo"
-            width={40}
-            height={40}
-            className="rounded-full"
-          />
-        </div>
-        <div className="p-4 flex-grow">
-          <Link href="/admin/profile" className="flex items-center space-x-4 mb-6 hover:bg-gray-100 rounded p-2">
-            <Avatar>
-              <AvatarImage src="/placeholder.svg" alt="Admin" />
-              <AvatarFallback>AK</AvatarFallback>
-            </Avatar>
-            <div>
-              <h2 className="text-lg font-semibold">Aaryan Khatri</h2>
-              <p className="text-sm text-gray-500">Admin</p>
-            </div>
-          </Link>
-          <nav className="space-y-2">
-            <Link href="/admin/dashboard" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Users size={20} />
-              <span>Dashboard</span>
-            </Link>
-            <Link href="/admin/users" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <UserPlus size={20} />
-              <span>User Management</span>
-            </Link>
-            <Link href="/admin/clubs" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <ClipboardList size={20} />
-              <span>Club Management</span>
-            </Link>
-            <Link href="/admin/events" className="flex items-center space-x-2 p-2 bg-gray-100 rounded">
-              <Calendar size={20} />
-              <span>Event Management</span>
-            </Link>
-            <Link href="/admin/announcements"className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Bell size={20} />
-              <span>Announcements</span>
-            </Link>
-            <Link href="/auth/signin" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <LogOut size={20} />
-              <span>Logout</span>
-            </Link>
-          </nav>
-        </div>
-      </aside>
-
-      {/* Main content */}
+      <AdminSidebar activePage="/admin/events" />
       <main className="flex-1 p-8 overflow-y-auto">
         <h1 className="text-3xl font-bold mb-6">Event Management</h1>
         
@@ -208,18 +236,18 @@ export default function AdminEventManagement() {
               />
             </div>
             <div>
-              <Label htmlFor="category">Category</Label>
+              <Label htmlFor="club">Club</Label>
               <Select
-                value={editingEvent ? editingEvent.category : newEvent.category}
-                onValueChange={handleCategoryChange}
+                value={editingEvent ? editingEvent.club_id || 'college' : newEvent.club_id || 'college'}
+                onValueChange={handleClubChange}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a category" />
+                  <SelectValue placeholder="Select a club" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="college">College general events</SelectItem>
                   {clubs.map(club => (
-                    <SelectItem key={club} value={club}>{club}</SelectItem>
+                    <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -240,17 +268,17 @@ export default function AdminEventManagement() {
               </CardHeader>
               <CardContent>
                 <p>{event.description}</p>
-                <p className="mt-2 text-sm text-gray-500">Date: {event.date}</p>
+                <p className="mt-2 text-sm text-gray-500">Date: {new Date(event.date).toLocaleDateString()}</p>
                 <p className="mt-1 text-sm text-blue-600 flex items-center">
-                  {event.category === 'college' ? (
+                  {event.club_id ? (
                     <>
-                      <School className="h-4 w-4 mr-1" />
-                      College general events
+                      <Users className="h-4 w-4 mr-1" />
+                      {clubs.find(club => club.id === event.club_id)?.name || 'Unknown Club'}
                     </>
                   ) : (
                     <>
-                      <Users className="h-4 w-4 mr-1" />
-                      {event.category}
+                      <School className="h-4 w-4 mr-1" />
+                      College general events
                     </>
                   )}
                 </p>

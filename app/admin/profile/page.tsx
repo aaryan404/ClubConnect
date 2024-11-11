@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import AdminSidebar from "@/components/AdminSidebar"
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from "@/components/ui/button"
@@ -55,56 +56,7 @@ export default function AdminProfilePage() {
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md flex flex-col">
-        <div className="p-4 flex justify-between items-center border-b">
-          <h1 className="text-xl font-bold">ClubConnect</h1>
-          <Image
-            src="/images/logo/favIcon.svg"
-            alt="ClubConnect Logo"
-            width={40}
-            height={40}
-            className="rounded-full"
-          />
-        </div>
-        <div className="p-4 flex-grow">
-          <Link href="/admin/profile" className="flex items-center space-x-4 mb-6 hover:bg-gray-100 rounded p-2">
-            <Avatar>
-              <AvatarImage src={profile.profilePicture} alt="Admin" />
-              <AvatarFallback>AK</AvatarFallback>
-            </Avatar>
-            <div>
-              <h2 className="text-lg font-semibold">{profile.name}</h2>
-              <p className="text-sm text-gray-500">Admin</p>
-            </div>
-          </Link>
-          <nav className="space-y-2">
-            <Link href="/admin/dashboard" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Users size={20} />
-              <span>Dashboard</span>
-            </Link>
-            <Link href="/admin/users" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <UserPlus size={20} />
-              <span>User Management</span>
-            </Link>
-            <Link href="/admin/clubs" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <ClipboardList size={20} />
-              <span>Club Management</span>
-            </Link>
-            <Link href="/admin/events" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Calendar size={20} />
-              <span>Event Management</span>
-            </Link>
-            <Link href="/admin/announcements" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Bell size={20} />
-              <span>Announcements</span>
-            </Link>
-            <Link href="/auth/signin" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <LogOut size={20} />
-              <span>Logout</span>
-            </Link>
-          </nav>
-        </div>
-      </aside>
+      <AdminSidebar activePage="/admin/profile" />
 
       {/* Main content */}
       <main className="flex-1 p-8 overflow-y-auto">

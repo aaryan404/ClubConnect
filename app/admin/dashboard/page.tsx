@@ -1,81 +1,105 @@
 "use client"
 
-import { useState } from "react"
-import Link from 'next/link'
-import Image from 'next/image'
+import { useState, useEffect } from "react"
+import { useRouter } from 'next/navigation'
+import AdminSidebar from '@/components/AdminSidebar'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Users, ClipboardList, Calendar, Bell, LogOut, UserPlus } from 'lucide-react'
+import { Users, ClipboardList, Calendar } from 'lucide-react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
-// Mock data (replace with actual data fetching in a real application)
-const clubData = [
-  { name: "Chess Club", students: 50 },
-  { name: "Debate Society", students: 30 },
-  { name: "Drama Club", students: 40 },
-  { name: "Music Club", students: 35 },
-  { name: "Sports Club", students: 60 },
-]
+interface ClubData {
+  id: string
+  name: string
+  member_count: number
+}
 
 export default function AdminDashboard() {
-  const [totalClubs] = useState(clubData.length)
-  const [totalActiveEvents] = useState(15) // Mock data
-  const [totalStudents] = useState(clubData.reduce((sum, club) => sum + club.students, 0))
+  const [totalClubs, setTotalClubs] = useState(0)
+  const [totalActiveEvents, setTotalActiveEvents] = useState(0)
+  const [totalStudents, setTotalStudents] = useState(0)
+  const [clubData, setClubData] = useState<ClubData[]>([])
+  const [admin, setAdmin] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
+  const supabase = createClientComponentClient()
+
+  useEffect(() => {
+    async function fetchDashboardData() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/auth/signin')
+          return
+        }
+
+        // Fetch admin data
+        const { data: adminData, error: adminError } = await supabase
+          .from('admin_profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
+
+        if (adminError) throw adminError
+        setAdmin(adminData)
+
+        // Fetch total clubs count
+        const { count: clubsCount, error: clubsError } = await supabase
+          .from('clubs')
+          .select('*', { count: 'exact', head: true })
+
+        if (clubsError) throw clubsError
+        setTotalClubs(clubsCount || 0)
+
+        // Fetch active events count
+        const { count: eventsCount, error: eventsError } = await supabase
+          .from('events')
+          .select('*', { count: 'exact', head: true })
+          .gte('date', new Date().toISOString())
+
+        if (eventsError) throw eventsError
+        setTotalActiveEvents(eventsCount || 0)
+
+        // Fetch total students count
+        const { count: studentsCount, error: studentsError } = await supabase
+          .from('students')
+          .select('*', { count: 'exact', head: true })
+
+        if (studentsError) throw studentsError
+        setTotalStudents(studentsCount || 0)
+
+        // Fetch club data with member counts
+        const { data: clubsData, error: clubsDataError } = await supabase
+          .from('clubs')
+          .select('id, name, member_count')
+          .order('name')
+
+        if (clubsDataError) throw clubsDataError
+        setClubData(clubsData)
+
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error)
+        setError('Failed to load dashboard data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDashboardData()
+  }, [router, supabase])
+
+  if (loading) {
+    return <div className="flex justify-center items-center h-screen">Loading...</div>
+  }
+
+  if (error) {
+    return <div className="flex justify-center items-center h-screen text-red-500">Error: {error}</div>
+  }
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md flex flex-col">
-        <div className="p-4 flex justify-between items-center border-b">
-          <h1 className="text-xl font-bold">ClubConnect</h1>
-          <Image
-            src="/images/logo/favIcon.svg"
-            alt="ClubConnect Logo"
-            width={40}
-            height={40}
-            className="rounded-full"
-          />
-        </div>
-        <div className="p-4 flex-grow">
-          <Link href="/admin/profile" className="flex items-center space-x-4 mb-6 hover:bg-gray-100 rounded p-2">
-            <Avatar>
-              <AvatarImage src="/placeholder.svg" alt="Admin" />
-              <AvatarFallback>AK</AvatarFallback>
-            </Avatar>
-            <div>
-              <h2 className="text-lg font-semibold">Aaryan Khatri</h2>
-              <p className="text-sm text-gray-500">Admin</p>
-            </div>
-          </Link>
-          <nav className="space-y-2">
-            <Link href="/admin/dashboard" className="flex items-center space-x-2 p-2 bg-gray-100 rounded">
-              <Users size={20} />
-              <span>Dashboard</span>
-            </Link>
-            <Link href="/admin/users" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <UserPlus size={20} />
-              <span>User Management</span>
-            </Link>
-            <Link href="/admin/clubs" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <ClipboardList size={20} />
-              <span>Club Management</span>
-            </Link>
-            <Link href="/admin/events" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Calendar size={20} />
-              <span>Event Management</span>
-            </Link>
-            <Link href="/admin/announcements" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Bell size={20} />
-              <span>Announcements</span>
-            </Link>
-            <Link href="/auth/signin" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <LogOut size={20} />
-              <span>Logout</span>
-            </Link>
-          </nav>
-        </div>
-      </aside>
+      <AdminSidebar activePage="/admin/dashboard" />
 
-      {/* Main content */}
       <main className="flex-1 p-8 overflow-y-auto">
         <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
         
@@ -111,15 +135,15 @@ export default function AdminDashboard() {
 
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Students per Club</CardTitle>
+            <CardTitle>Members per Club</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {clubData.map((club) => (
-                <div key={club.name} className="bg-white p-4 rounded-lg shadow">
+                <div key={club.id} className="bg-white p-4 rounded-lg shadow">
                   <h3 className="font-semibold text-lg mb-2">{club.name}</h3>
-                  <p className="text-2xl font-bold">{club.students}</p>
-                  <p className="text-sm text-gray-500">Students</p>
+                  <p className="text-2xl font-bold">{club.member_count}</p>
+                  <p className="text-sm text-gray-500">Members</p>
                 </div>
               ))}
             </div>

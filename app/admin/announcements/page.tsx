@@ -1,15 +1,12 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import Link from 'next/link'
-import Image from 'next/image'
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Users, ClipboardList, Calendar, Bell, LogOut, Trash2, Edit, UserPlus, Globe, Users as UsersIcon } from 'lucide-react'
+import { Globe, Users as UsersIcon, Trash2, Edit } from 'lucide-react'
 import { toast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import {
@@ -29,33 +26,81 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import AdminSidebar from "@/components/AdminSidebar"
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 interface Announcement {
-  id: number
+  id: string
   title: string
   content: string
-  target: 'global' | string
+  club_id: string
   date: string
 }
 
-const clubs = [
-  "NCT Coding Club",
-  "NCT Robotics Club",
-  "NCT E-Sports Club",
-  "NCT Boardgames Club",
-  "NCT Book Club",
-  "NCT Cricket Club",
-  "Basketball Club",
-  "Volleyball Club",
-  "Badminton Club",
-  "Soccer Club"
-]
+interface Club {
+  id: string
+  name: string
+}
 
 export default function AdminAnnouncementsPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
-  const [newAnnouncement, setNewAnnouncement] = useState<Omit<Announcement, 'id' | 'date'>>({ title: '', content: '', target: 'global' })
+  const [clubs, setClubs] = useState<Club[]>([])
+  const [newAnnouncement, setNewAnnouncement] = useState<Omit<Announcement, 'id' | 'date'>>({ title: '', content: '', club_id: '' })
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null)
   const [announcementToDelete, setAnnouncementToDelete] = useState<Announcement | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const supabase = createClientComponentClient()
+
+  useEffect(() => {
+    fetchClubs()
+    fetchAnnouncements()
+  }, [])
+
+  async function fetchClubs() {
+    try {
+      const { data, error } = await supabase
+        .from('clubs')
+        .select('id, name')
+        .order('name')
+
+      if (error) {
+        throw error
+      }
+
+      setClubs(data)
+    } catch (error) {
+      console.error('Error fetching clubs:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch clubs. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function fetchAnnouncements() {
+    try {
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('*')
+        .order('date', { ascending: false })
+
+      if (error) {
+        throw error
+      }
+
+      setAnnouncements(data)
+    } catch (error) {
+      console.error('Error fetching announcements:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch announcements. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -66,27 +111,40 @@ export default function AdminAnnouncementsPage() {
     }
   }
 
-  const handleTargetChange = (value: string) => {
+  const handleClubChange = (value: string) => {
     if (editingAnnouncement) {
-      setEditingAnnouncement({ ...editingAnnouncement, target: value })
+      setEditingAnnouncement({ ...editingAnnouncement, club_id: value })
     } else {
-      setNewAnnouncement({ ...newAnnouncement, target: value })
+      setNewAnnouncement({ ...newAnnouncement, club_id: value })
     }
   }
 
-  const handleAddAnnouncement = () => {
-    if (newAnnouncement.title && newAnnouncement.content && newAnnouncement.target) {
-      const announcementToAdd = {
-        ...newAnnouncement,
-        id: Date.now(),
-        date: new Date().toISOString().split('T')[0]
+  const handleAddAnnouncement = async () => {
+    if (newAnnouncement.title && newAnnouncement.content && newAnnouncement.club_id) {
+      try {
+        const { data, error } = await supabase
+          .from('announcements')
+          .insert([
+            { ...newAnnouncement, date: new Date().toISOString().split('T')[0] }
+          ])
+          .select()
+
+        if (error) throw error
+
+        setAnnouncements([data[0], ...announcements])
+        setNewAnnouncement({ title: '', content: '', club_id: '' })
+        toast({
+          title: "Announcement Added",
+          description: "The announcement has been added successfully.",
+        })
+      } catch (error) {
+        console.error('Error adding announcement:', error)
+        toast({
+          title: "Error",
+          description: "Failed to add announcement. Please try again.",
+          variant: "destructive",
+        })
       }
-      setAnnouncements([...announcements, announcementToAdd])
-      setNewAnnouncement({ title: '', content: '', target: 'global' })
-      toast({
-        title: "Announcement Added",
-        description: "The announcement has been added successfully.",
-      })
     }
   }
 
@@ -94,16 +152,32 @@ export default function AdminAnnouncementsPage() {
     setEditingAnnouncement(announcement)
   }
 
-  const handleUpdateAnnouncement = () => {
+  const handleUpdateAnnouncement = async () => {
     if (editingAnnouncement) {
-      setAnnouncements(announcements.map(announcement => 
-        announcement.id === editingAnnouncement.id ? editingAnnouncement : announcement
-      ))
-      setEditingAnnouncement(null)
-      toast({
-        title: "Announcement Updated",
-        description: "The announcement has been updated successfully.",
-      })
+      try {
+        const { error } = await supabase
+          .from('announcements')
+          .update(editingAnnouncement)
+          .eq('id', editingAnnouncement.id)
+
+        if (error) throw error
+
+        setAnnouncements(announcements.map(announcement => 
+          announcement.id === editingAnnouncement.id ? editingAnnouncement : announcement
+        ))
+        setEditingAnnouncement(null)
+        toast({
+          title: "Announcement Updated",
+          description: "The announcement has been updated successfully.",
+        })
+      } catch (error) {
+        console.error('Error updating announcement:', error)
+        toast({
+          title: "Error",
+          description: "Failed to update announcement. Please try again.",
+          variant: "destructive",
+        })
+      }
     }
   }
 
@@ -111,72 +185,41 @@ export default function AdminAnnouncementsPage() {
     setAnnouncementToDelete(announcement)
   }
 
-  const confirmDeleteAnnouncement = () => {
+  const confirmDeleteAnnouncement = async () => {
     if (announcementToDelete) {
-      setAnnouncements(announcements.filter(announcement => announcement.id !== announcementToDelete.id))
-      setAnnouncementToDelete(null)
-      toast({
-        title: "Announcement Deleted",
-        description: "The announcement has been deleted successfully.",
-      })
+      try {
+        const { error } = await supabase
+          .from('announcements')
+          .delete()
+          .eq('id', announcementToDelete.id)
+
+        if (error) throw error
+
+        setAnnouncements(announcements.filter(announcement => announcement.id !== announcementToDelete.id))
+        setAnnouncementToDelete(null)
+        toast({
+          title: "Announcement Deleted",
+          description: "The announcement has been deleted successfully.",
+        })
+      } catch (error) {
+        console.error('Error deleting announcement:', error)
+        toast({
+          title: "Error",
+          description: "Failed to delete announcement. Please try again.",
+          variant: "destructive",
+        })
+      }
     }
+  }
+
+  if (isLoading) {
+    return <div>Loading...</div>
   }
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md flex flex-col">
-        <div className="p-4 flex justify-between items-center border-b">
-          <h1 className="text-xl font-bold">ClubConnect</h1>
-          <Image
-            src="/images/logo/favIcon.svg"
-            alt="ClubConnect Logo"
-            width={40}
-            height={40}
-            className="rounded-full"
-          />
-        </div>
-        <div className="p-4 flex-grow">
-          <Link href="/admin/profile" className="flex items-center space-x-4 mb-6 hover:bg-gray-100 rounded p-2">
-            <Avatar>
-              <AvatarImage src="/placeholder.svg" alt="Admin" />
-              <AvatarFallback>AK</AvatarFallback>
-            </Avatar>
-            <div>
-              <h2 className="text-lg font-semibold">Aaryan Khatri</h2>
-              <p className="text-sm text-gray-500">Admin</p>
-            </div>
-          </Link>
-          <nav className="space-y-2">
-            <Link href="/admin/dashboard" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Users size={20} />
-              <span>Dashboard</span>
-            </Link>
-            <Link href="/admin/users" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <UserPlus size={20} />
-              <span>User Management</span>
-            </Link>
-            <Link href="/admin/clubs" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <ClipboardList size={20} />
-              <span>Club Management</span>
-            </Link>
-            <Link href="/admin/events" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Calendar size={20} />
-              <span>Event Management</span>
-            </Link>
-            <Link href="/admin/announcements" className="flex items-center space-x-2 p-2 bg-gray-100 rounded">
-              <Bell size={20} />
-              <span>Announcements</span>
-            </Link>
-            <Link href="/auth/signin" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <LogOut size={20} />
-              <span>Logout</span>
-            </Link>
-          </nav>
-        </div>
-      </aside>
+      <AdminSidebar activePage="/admin/announcements" />
 
-      {/* Main content */}
       <main className="flex-1 p-8 overflow-y-auto">
         <h1 className="text-3xl font-bold mb-6">Announcements</h1>
         
@@ -205,18 +248,17 @@ export default function AdminAnnouncementsPage() {
               />
             </div>
             <div>
-              <Label htmlFor="target">Target Audience</Label>
+              <Label htmlFor="club_id">Target Club</Label>
               <Select
-                value={editingAnnouncement ? editingAnnouncement.target : newAnnouncement.target}
-                onValueChange={handleTargetChange}
+                value={editingAnnouncement ? editingAnnouncement.club_id : newAnnouncement.club_id}
+                onValueChange={handleClubChange}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select target audience" />
+                  <SelectValue placeholder="Select target club" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="global">Global</SelectItem>
                   {clubs.map(club => (
-                    <SelectItem key={club} value={club}>{club}</SelectItem>
+                    <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -244,17 +286,8 @@ export default function AdminAnnouncementsPage() {
                     <p>{announcement.content}</p>
                     <p className="mt-2 text-sm text-gray-500">Date: {announcement.date}</p>
                     <p className="mt-1 text-sm text-blue-600 flex items-center">
-                      {announcement.target === 'global' ? (
-                        <>
-                          <Globe className="h-4 w-4 mr-1" />
-                          Global
-                        </>
-                      ) : (
-                        <>
-                          <UsersIcon className="h-4 w-4 mr-1" />
-                          {announcement.target}
-                        </>
-                      )}
+                      <UsersIcon className="h-4 w-4 mr-1" />
+                      {clubs.find(club => club.id === announcement.club_id)?.name || 'Unknown Club'}
                     </p>
                   </CardContent>
                   <CardFooter className="flex justify-between">

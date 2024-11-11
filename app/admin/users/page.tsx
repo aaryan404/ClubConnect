@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import AdminSidebar from '@/components/AdminSidebar'
 
 interface User {
   id: string
@@ -74,10 +75,12 @@ export default function AdminUserManagement() {
     const channel = supabase
       .channel('users_and_sub_admins')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, () => {
+        console.log('Students table changed, fetching updated data...')
         fetchUsers()
         fetchSubAdmins()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sub_admins' }, () => {
+        console.log('Sub_admins table changed, fetching updated data...')
         fetchSubAdmins()
       })
       .subscribe()
@@ -101,16 +104,19 @@ export default function AdminUserManagement() {
         variant: "destructive",
       })
     } else {
+      console.log('Fetched users:', data)
       setUsers(data || [])
     }
     setIsLoading(false)
   }
 
   const fetchSubAdmins = async () => {
+    console.log('Fetching sub-admins...')
     const { data, error } = await supabase
       .from('sub_admins')
       .select(`
         id,
+        user_id,
         user:students(id, name, student_id, email, role),
         club:clubs!inner(id, name)
       `)
@@ -123,14 +129,17 @@ export default function AdminUserManagement() {
         variant: "destructive",
       })
     } else {
-      setSubAdmins(data?.map((item: any) => ({
+      console.log('Fetched sub-admins:', data)
+      const formattedSubAdmins = data?.map((item: any) => ({
         id: item.user.id,
         name: item.user.name,
         student_id: item.user.student_id,
         email: item.user.email,
         role: item.user.role,
         club: item.club.name
-      })) || [])
+      })) || []
+      console.log('Formatted sub-admins:', formattedSubAdmins)
+      setSubAdmins(formattedSubAdmins)
     }
   }
 
@@ -164,43 +173,85 @@ export default function AdminUserManagement() {
 
   const handleSaveChanges = async () => {
     for (const [userId, newRole] of Object.entries(changedRoles)) {
-      if (newRole === 'student') {
-        const { error } = await supabase
+      try {
+        console.log('Processing user:', userId, 'New role:', newRole);
+        
+        // First update the role in students table
+        const { data: updateData, error: updateError } = await supabase
           .from('students')
           .update({ role: newRole })
           .eq('id', userId)
+          .select()
         
-        if (error) {
-          console.error('Error updating user role:', error)
-          toast({
-            title: "Error",
-            description: `Failed to update role for user ${userId}`,
-            variant: "destructive",
-          })
-        } else {
-          // If changing to student, remove from sub_admins table
-          await supabase
-            .from('sub_admins')
-            .delete()
-            .eq('user_id', userId)
+        if (updateError) {
+          console.error('Update error:', updateError);
+          throw updateError;
         }
+        
+        console.log('Update successful:', updateData);
+  
+        if (newRole === 'student') {
+          console.log('Attempting to delete from sub_admins for user:', userId);
+          
+          // First check if user exists in sub_admins
+          const { data: checkData, error: checkError } = await supabase
+            .from('sub_admins')
+            .select('*')
+            .eq('user_id', userId);
+            
+          console.log('Check sub_admin existence:', checkData);
+          
+          if (checkData && checkData.length > 0) {
+            // User exists in sub_admins, proceed with deletion
+            const { data: deleteData, error: deleteError } = await supabase
+              .from('sub_admins')
+              .delete()
+              .eq('user_id', userId)
+              .select()
+            
+            if (deleteError) {
+              console.error('Delete error:', deleteError);
+              toast({
+                title: "Error",
+                description: `Failed to remove user from sub-admins: ${deleteError.message}`,
+                variant: "destructive",
+              })
+            } else {
+              console.log('Delete successful:', deleteData);
+              // Update local state to reflect the change
+              setSubAdmins(prevSubAdmins => prevSubAdmins.filter(admin => admin.id !== userId))
+            }
+          } else {
+            console.log('User not found in sub_admins table');
+          }
+        }
+  
+      } catch (error) {
+        console.error('General error in handleSaveChanges:', error);
+        toast({
+          title: "Error",
+          description: `Failed to update user ${userId}. Please try again.`,
+          variant: "destructive",
+        })
       }
     }
+    
     setChangedRoles({})
-    fetchUsers()
-    fetchSubAdmins()
+    // Reload data after all changes
+    await Promise.all([fetchUsers(), fetchSubAdmins()]);
     toast({
       title: "Changes Saved",
       description: "User roles have been updated successfully.",
     })
   }
-
+  
   const handleDeleteUser = (user: User) => {
     setUserToDelete(user)
   }
 
   const confirmDeleteUser = async () => {
     if (userToDelete) {
+      console.log('Deleting user:', userToDelete.id)
       const { error } = await supabase
         .from('students')
         .delete()
@@ -214,12 +265,25 @@ export default function AdminUserManagement() {
           variant: "destructive",
         })
       } else {
+        console.log('User deleted successfully')
+        // Remove user from sub_admins table if they were a sub-admin
+        const { error: subAdminError } = await supabase
+          .from('sub_admins')
+          .delete()
+          .eq('user_id', userToDelete.id)
+
+        if (subAdminError) {
+          console.error('Error removing user from sub_admins:', subAdminError)
+        } else {
+          console.log('User removed from sub_admins (if they were a sub-admin)')
+        }
+
         toast({
           title: "User Deleted",
           description: "The user has been removed successfully.",
         })
-        fetchUsers()
-        fetchSubAdmins()
+        await fetchUsers()
+        await fetchSubAdmins()
       }
       setUserToDelete(null)
     }
@@ -228,6 +292,7 @@ export default function AdminUserManagement() {
   const handleAssignClub = async () => {
     if (subAdminToAssign && selectedClub) {
       try {
+        console.log('Assigning club:', selectedClub, 'to user:', subAdminToAssign.id)
         const { data, error } = await supabase.rpc('assign_sub_admin', {
           p_user_id: subAdminToAssign.id,
           p_club_id: selectedClub
@@ -235,13 +300,14 @@ export default function AdminUserManagement() {
 
         if (error) throw error
 
+        console.log('Club assigned successfully')
         setChangedRoles(prev => ({ ...prev, [subAdminToAssign.id]: 'sub-admin' }))
         toast({
           title: "Sub-Admin Assigned",
           description: `${subAdminToAssign.name} has been assigned as sub-admin to the selected club.`,
         })
-        fetchUsers()
-        fetchSubAdmins()
+        await fetchUsers()
+        await fetchSubAdmins()
       } catch (error) {
         console.error('Error assigning sub-admin:', error)
         toast({
@@ -262,59 +328,7 @@ export default function AdminUserManagement() {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md flex flex-col">
-        <div className="p-4 flex justify-between items-center border-b">
-          <h1 className="text-xl font-bold">ClubConnect</h1>
-          <Image
-            src="/images/logo/favIcon.svg"
-            alt="ClubConnect Logo"
-            width={40}
-            height={40}
-            className="rounded-full"
-          />
-        </div>
-        <div className="p-4 flex-grow">
-          <Link href="/admin/profile" className="flex items-center space-x-4 mb-6 hover:bg-gray-100 rounded p-2">
-            <Avatar>
-              <AvatarImage src="/placeholder.svg" alt="Admin" />
-              <AvatarFallback>AK</AvatarFallback>
-            </Avatar>
-            <div>
-              <h2 className="text-lg font-semibold">Aaryan Khatri</h2>
-              <p className="text-sm text-gray-500">Admin</p>
-            </div>
-          </Link>
-          <nav className="space-y-2">
-            <Link href="/admin/dashboard" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Users size={20} />
-              <span>Dashboard</span>
-            </Link>
-            <Link href="/admin/users" className="flex items-center space-x-2 p-2 bg-gray-100 rounded">
-              <UserPlus size={20} />
-              <span>User Management</span>
-            </Link>
-            <Link href="/admin/clubs" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <ClipboardList size={20} />
-              <span>Club Management</span>
-            </Link>
-            <Link href="/admin/events" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Calendar size={20} />
-              <span>Event Management</span>
-            </Link>
-            <Link href="/admin/announcements" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <Bell size={20} />
-              <span>Announcements</span>
-            </Link>
-            <Link href="/auth/signin" className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-              <LogOut size={20} />
-              <span>Logout</span>
-            </Link>
-          </nav>
-        </div>
-      </aside>
-
-      {/* Main content */}
+      <AdminSidebar activePage="/admin/users" />
       <main className="flex-1 p-8 overflow-y-auto">
         <h1 className="text-3xl font-bold mb-6">User Management</h1>
         

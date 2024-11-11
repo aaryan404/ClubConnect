@@ -25,11 +25,11 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 import {
   addAdmin,
-  getAdmins,
   updateAdmin,
   deleteAdmin,
   getAdminPassword,
   updateAdminPassword,
+  getAdmins,
 } from "@/app/actions/admin";
 
 type Admin = {
@@ -83,7 +83,6 @@ const AddAdmin: React.FC = () => {
       }
     }
   };
-
   return (
     <Card>
       <CardHeader>

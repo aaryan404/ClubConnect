@@ -1,26 +1,87 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Users, ClipboardList, Calendar, Bell, LogOut, Settings, TrendingUp } from 'lucide-react'
+import { Users, ClipboardList, Calendar, Bell, LogOut, Settings, TrendingUp, Loader2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { toast } from "@/hooks/use-toast"
 
 interface NavigationProps {
-  active: 'profile'|'dashboard' | 'announcements' | 'clubs' | 'events' | 'settings'
+  active: 'profile' | 'dashboard' | 'announcements' | 'clubs' | 'events' | 'settings'
+}
+
+interface StudentProfile {
+  id: string
+  name: string
+  avatar_url: string | null
 }
 
 export default function StudentNavigation({ active }: NavigationProps) {
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [studentProfile, setStudentProfile] = useState<StudentProfile | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const supabase = createClientComponentClient()
 
-  const handleLogout = () => {
+  useEffect(() => {
+    fetchStudentProfile()
+  }, [])
+
+  async function fetchStudentProfile() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
+
+        if (error) throw error
+
+        setStudentProfile(data)
+      }
+    } catch (error) {
+      console.error('Error fetching student profile:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch student profile",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleLogout = async () => {
     setIsLoggingOut(true)
-    // Perform logout logic here (e.g., clear session, cookies, etc.)
-    // Then navigate to the signin page
-    router.push('/auth/signin')
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      router.push('/auth/signin')
+    } catch (error) {
+      console.error('Error signing out:', error)
+      toast({
+        title: "Error",
+        description: "Failed to sign out",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <aside className="w-64 bg-white shadow-md flex flex-col items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </aside>
+    )
   }
 
   return (
@@ -38,16 +99,15 @@ export default function StudentNavigation({ active }: NavigationProps) {
       <div className="p-4 flex-grow">
         <Link href="/member/profile" className="flex items-center space-x-4 mb-6 hover:bg-gray-100 rounded p-2">
           <Avatar>
-            <AvatarImage src="/placeholder.svg" alt="Student" />
-            <AvatarFallback>S</AvatarFallback>
+            <AvatarImage src={studentProfile?.avatar_url || "/placeholder.svg"} alt={studentProfile?.name || "Student"} />
+            <AvatarFallback>{studentProfile?.name?.[0] || "S"}</AvatarFallback>
           </Avatar>
           <div>
-            <h2 className="text-lg font-semibold">Aaryan Khatri</h2>
+            <h2 className="text-lg font-semibold">{studentProfile?.name || "Student Name"}</h2>
             <p className="text-sm text-gray-500">Student</p>
           </div>
         </Link>
         <nav className="space-y-2">
-        
           <NavItem href="/member/dashboard" icon={<TrendingUp size={20} />} label="Dashboard" isActive={active === 'dashboard'} disabled={isLoggingOut} />
           <NavItem href="/member/announcements" icon={<Bell size={20} />} label="Announcements" isActive={active === 'announcements'} disabled={isLoggingOut} />
           <NavItem href="/member/clubs" icon={<ClipboardList size={20} />} label="Clubs" isActive={active === 'clubs'} disabled={isLoggingOut} />
@@ -61,8 +121,8 @@ export default function StudentNavigation({ active }: NavigationProps) {
           onClick={handleLogout}
           disabled={isLoggingOut}
         >
-          <LogOut size={20} className="mr-2" />
-          Logout
+          {isLoggingOut ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut size={20} className="mr-2" />}
+          {isLoggingOut ? "Logging out..." : "Logout"}
         </Button>
       </div>
     </aside>

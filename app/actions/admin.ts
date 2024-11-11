@@ -20,26 +20,12 @@ const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
 
 const emailSchema = z.string().email().min(5).max(255)
 
-export async function getAdmins() {
-  try {
-    const { data, error } = await supabase
-      .from('admins')
-      .select('id, email, name')
-
-    if (error) throw error
-
-    return { success: true, data }
-  } catch (error: any) {
-    console.error('Error fetching admins:', error)
-    return { success: false, message: error.message || 'Failed to fetch admins' }
-  }
-}
-
 const adminSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters long'),
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters long')
 })
+
 export async function addAdmin(name: string, email: string, password: string) {
   try {
     // Validate input
@@ -96,10 +82,31 @@ export async function addAdmin(name: string, email: string, password: string) {
     if (insertError) {
       // If insert fails, delete the created auth user
       await supabase.auth.admin.deleteUser(data.user.id)
-      throw new Error('Failed to insert admin data')
+      throw new Error(`Failed to insert admin data: ${insertError.message}`)
     }
 
-    return { success: true, message: 'Admin added successfully' }
+    // Insert admin profile into admin_profiles table
+    const { error: profileInsertError } = await supabase
+      .from('admin_profiles')
+      .insert({
+        id: data.user.id,  // Use the UUID from the created user
+        admin_id: admin_id,
+        name: validatedInput.name,
+        email: data.user.email,
+        created_at: new Date().toISOString(),
+        last_login: null,
+        login_count: 0
+      })
+
+    if (profileInsertError) {
+      // If profile insert fails, delete the created auth user and admin
+      await supabase.auth.admin.deleteUser(data.user.id)
+      await supabase.from('admins').delete().eq('id', data.user.id)
+      console.error('Failed to create admin profile:', profileInsertError)
+      throw new Error(`Failed to create admin profile: ${profileInsertError.message}`)
+    }
+
+    return { success: true, message: 'Admin added successfully with profile' }
   } catch (error) {
     console.error('Error adding admin:', error)
     if (error instanceof z.ZodError) {
@@ -108,35 +115,55 @@ export async function addAdmin(name: string, email: string, password: string) {
     return { success: false, message: error instanceof Error ? error.message : 'Failed to add admin' }
   }
 }
+
+export async function getAdmins() {
+  try {
+    const { data, error } = await supabase
+      .from('admins')
+      .select('id, email, name')
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error: any) {
+    console.error('Error fetching admins:', error)
+    return { success: false, message: error.message || 'Failed to fetch admins' }
+  }
+}
+
 export async function updateAdmin(id: string, name: string, email: string) {
   try {
     // Validate email
-    try {
-      const validatedEmail = emailSchema.parse(email);
-      const { error } = await supabase.auth.admin.updateUserById(
-        id,
-        { email: validatedEmail }
-      )
+    const validatedEmail = emailSchema.parse(email);
+    
+    const { error } = await supabase.auth.admin.updateUserById(
+      id,
+      { email: validatedEmail }
+    )
 
-      if (error) {
-        if (error.message.includes('email')) {
-          throw new Error('Invalid email address. Please check and try again.')
-        }
-        throw error
+    if (error) {
+      if (error.message.includes('email')) {
+        throw new Error('Invalid email address. Please check and try again.')
       }
-
-      const { error: updateError } = await supabase
-        .from('admins')
-        .update({ email: validatedEmail, name })
-        .eq('id', id)
-
-      if (updateError) throw updateError
-
-      return { success: true, message: 'Admin updated successfully' }
-    } catch (error) {
-      console.error('Email validation error:', error);
-      return { success: false, message: 'Invalid email address. Please check and try again.' };
+      throw error
     }
+
+    const { error: updateError } = await supabase
+      .from('admins')
+      .update({ email: validatedEmail, name })
+      .eq('id', id)
+
+    if (updateError) throw updateError
+
+    // Update admin profile
+    const { error: profileUpdateError } = await supabase
+      .from('admin_profiles')
+      .update({ email: validatedEmail, name })
+      .eq('id', id)
+
+    if (profileUpdateError) throw profileUpdateError
+
+    return { success: true, message: 'Admin updated successfully' }
   } catch (error: any) {
     console.error('Error updating admin:', error)
     return { success: false, message: error.message || 'Failed to update admin' }
@@ -155,6 +182,14 @@ export async function deleteAdmin(id: string) {
       .eq('id', id)
 
     if (deleteError) throw deleteError
+
+    // Delete admin profile
+    const { error: profileDeleteError } = await supabase
+      .from('admin_profiles')
+      .delete()
+      .eq('id', id)
+
+    if (profileDeleteError) throw profileDeleteError
 
     return { success: true, message: 'Admin deleted successfully' }
   } catch (error: any) {
