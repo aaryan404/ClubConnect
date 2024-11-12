@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import Navigation from '@/components/navigation'
+import Navigation from '@/components/studentNavigation'
 
 // Mock data (replace with actual data fetching in a real application)
 const clubData = {

@@ -238,14 +238,13 @@ export default function AdminEventManagement() {
             <div>
               <Label htmlFor="club">Club</Label>
               <Select
-                value={editingEvent ? editingEvent.club_id || 'college' : newEvent.club_id || 'college'}
+                value={editingEvent ? editingEvent.club_id ?? undefined : newEvent.club_id ?? undefined}
                 onValueChange={handleClubChange}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a club" />
+                  <SelectValue placeholder="Select target club" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="college">College general events</SelectItem>
                   {clubs.map(club => (
                     <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
                   ))}

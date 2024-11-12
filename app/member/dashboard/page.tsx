@@ -1,79 +1,140 @@
 "use client"
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Users, ClipboardList, Calendar, Bell, LogOut, Settings, TrendingUp } from 'lucide-react'
+import { Users, ClipboardList, Calendar, Bell, LogOut, Settings, TrendingUp, Loader2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import Navigation from '@/components/studentNavigation'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { toast } from '@/hooks/use-toast'
 
-// Mock data for recent announcements (replace with actual data fetching in a real application)
-const recentAnnouncements = [
-  {
-    id: 1,
-    title: "Campus-wide Event",
-    content: "Join us for the annual campus festival next week!",
-    type: "global",
-    date: "2023-07-15",
-    image: "/images/about-mobile.jpg", // Add a valid image path or URL
-  },
-  {
-    id: 2,
-    title: "Chess Tournament",
-    content: "Chess Club is organizing an inter-college tournament.",
-    type: "club",
-    clubName: "Chess Club",
-    date: "2023-07-20",
-  },
-]
+interface Announcement {
+  id: number
+  title: string
+  content: string
+  club_id: string
+  created_at: string
+  image_url?: string
+}
 
-// Mock data for recent events with highest join clicks
-const recentEvents = [
-  {
-    id: 1,
-    title: "Chess Competition",
-    club: "Chess Club",
-    date: "2024-08-05",
-    joinClicks: 43,
-  },
-  {
-    id: 2,
-    title: "Summer Soccer Fest",
-    club: "Soccer Club",
-    date: "2024-09-30",
-    joinClicks: 142,
-  },
-  {
-    id: 3,
-    title: "Book review session",
-    club: "Book Club",
-    date: "2024-10-02",
-    joinClicks: 23,
-  },
-]
+interface Event {
+  id: number
+  title: string
+  club_name: string
+  date: string
+  join_clicks: number
+}
 
-// Mock data for trending clubs
-const trendingClubs = [
-  {
-    id: 1,
-    name: "Robotics Club",
-    members: 120,
-  },
-  {
-    id: 2,
-    name: "Coding Club",
-    members: 95,
-  },
-]
+interface Club {
+  id: number
+  name: string
+  member_count: number
+}
 
 export default function StudentDashboard() {
+  const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [events, setEvents] = useState<Event[]>([])
+  const [clubs, setClubs] = useState<Club[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const supabase = createClientComponentClient()
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
+
+  async function fetchDashboardData() {
+    setIsLoading(true)
+    try {
+      const [announcementsData, eventsData, clubsData] = await Promise.all([
+        fetchAnnouncements(),
+        fetchEvents(),
+        fetchClubs()
+      ])
+      setAnnouncements(announcementsData)
+      setEvents(eventsData)
+      setClubs(clubsData)
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function fetchAnnouncements(): Promise<Announcement[]> {
+    const { data, error } = await supabase
+      .from('announcements')
+      .select('id, title, content, club_id, created_at, image_url')
+      .eq('club_id', 'Global')
+      .order('created_at', { ascending: false })
+      .limit(3)
+
+    if (error) {
+      console.error('Error fetching announcements:', error)
+      throw error
+    }
+
+    return data
+  }
+
+  async function fetchEvents(): Promise<Event[]> {
+    const { data, error } = await supabase
+      .from('events')
+      .select('id, title, date, join_clicks, clubs(id, name)')
+      .order('join_clicks', { ascending: false })
+      .limit(3)
+
+    if (error) {
+      console.error('Error fetching events:', error)
+      throw error
+    }
+
+    return data.map(item => ({
+      id: item.id,
+      title: item.title,
+      date: item.date,
+      join_clicks: item.join_clicks,
+      club_name: item.clubs[0].name
+    }))
+  }
+
+  async function fetchClubs(): Promise<Club[]> {
+    const { data, error } = await supabase
+      .from('clubs')
+      .select('id, name, member_count')
+      .order('member_count', { ascending: false })
+      .limit(2)
+
+    if (error) {
+      console.error('Error fetching clubs:', error)
+      throw error
+    }
+
+    return data
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen bg-gray-100">
+        <Navigation active={'dashboard'} />
+        <main className="flex-1 p-8 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <Navigation active={'dashboard'}/>
+      <Navigation active={'dashboard'} />
 
-      {/* Main content */}
       <main className="flex-1 p-8 overflow-y-auto">
         <h1 className="text-3xl font-bold mb-6">Student Dashboard</h1>
         
@@ -81,24 +142,24 @@ export default function StudentDashboard() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Recent Announcements</CardTitle>
             <Button variant="outline" asChild>
-              <Link href="/student/announcements">View All</Link>
+              <Link href="/member/announcements">View All</Link>
             </Button>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentAnnouncements.map((announcement) => (
+              {announcements.map((announcement) => (
                 <Card key={announcement.id} className="bg-white shadow-sm">
                   <CardHeader>
                     <CardTitle className="text-lg">{announcement.title}</CardTitle>
                     <p className="text-sm text-muted-foreground">
-                      {announcement.type === "global" ? "Global Announcement" : `From: ${announcement.clubName}`} • {announcement.date}
+                      Global Announcement • {new Date(announcement.created_at).toLocaleDateString()}
                     </p>
                   </CardHeader>
                   <CardContent>
-                    {announcement.image && (
-                      <div className="w-[500px] h-[300px] mb-4 overflow-hidden">
+                    {announcement.image_url && (
+                      <div className="w-full h-[200px] mb-4 overflow-hidden">
                         <Image
-                          src={announcement.image}
+                          src={announcement.image_url}
                           alt={announcement.title}
                           width={500}
                           height={300}
@@ -124,14 +185,14 @@ export default function StudentDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {recentEvents.map((event) => (
+                {events.map((event) => (
                   <div key={event.id} className="flex items-center justify-between">
                     <div>
                       <h3 className="font-semibold">{event.title}</h3>
-                      <p className="text-sm text-muted-foreground">{event.club} • {event.date}</p>
+                      <p className="text-sm text-muted-foreground">{event.club_name} • {new Date(event.date).toLocaleDateString()}</p>
                     </div>
                     <div className="text-sm font-medium">
-                      {event.joinClicks} joins
+                      {event.join_clicks} joins
                     </div>
                   </div>
                 ))}
@@ -148,11 +209,11 @@ export default function StudentDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {trendingClubs.map((club) => (
+                {clubs.map((club) => (
                   <div key={club.id} className="flex items-center justify-between">
                     <div>
                       <h3 className="font-semibold">{club.name}</h3>
-                      <p className="text-sm text-muted-foreground">{club.members} members</p>
+                      <p className="text-sm text-muted-foreground">{club.member_count} members</p>
                     </div>
                     <Button size="sm">Join</Button>
                   </div>

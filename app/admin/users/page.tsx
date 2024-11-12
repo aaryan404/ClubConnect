@@ -114,12 +114,7 @@ export default function AdminUserManagement() {
     console.log('Fetching sub-admins...')
     const { data, error } = await supabase
       .from('sub_admins')
-      .select(`
-        id,
-        user_id,
-        user:students(id, name, student_id, email, role),
-        club:clubs!inner(id, name)
-      `)
+      .select('*')
     
     if (error) {
       console.error('Error fetching sub-admins:', error)
