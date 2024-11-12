@@ -110,33 +110,7 @@ export default function AdminUserManagement() {
     setIsLoading(false)
   }
 
-  const fetchSubAdmins = async () => {
-    console.log('Fetching sub-admins...')
-    const { data, error } = await supabase
-      .from('sub_admins')
-      .select('*')
-    
-    if (error) {
-      console.error('Error fetching sub-admins:', error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch sub-admins",
-        variant: "destructive",
-      })
-    } else {
-      console.log('Fetched sub-admins:', data)
-      const formattedSubAdmins = data?.map((item: any) => ({
-        id: item.user.id,
-        name: item.user.name,
-        student_id: item.user.student_id,
-        email: item.user.email,
-        role: item.user.role,
-        club: item.club.name
-      })) || []
-      console.log('Formatted sub-admins:', formattedSubAdmins)
-      setSubAdmins(formattedSubAdmins)
-    }
-  }
+  
 
   const fetchClubs = async () => {
     const { data, error } = await supabase
@@ -288,21 +262,26 @@ export default function AdminUserManagement() {
     if (subAdminToAssign && selectedClub) {
       try {
         console.log('Assigning club:', selectedClub, 'to user:', subAdminToAssign.id)
-        const { data, error } = await supabase.rpc('assign_sub_admin', {
-          p_user_id: subAdminToAssign.id,
-          p_club_id: selectedClub
-        })
-
+        
+        // Update the user's role to 'sub-admin' and assign the club in the students table
+        const { data, error } = await supabase
+          .from('students')
+          .update({ 
+            role: 'sub-admin',
+            club: selectedClub
+          })
+          .eq('id', subAdminToAssign.id)
+          .select()
+  
         if (error) throw error
-
-        console.log('Club assigned successfully')
+  
+        console.log('Club assigned successfully:', data)
         setChangedRoles(prev => ({ ...prev, [subAdminToAssign.id]: 'sub-admin' }))
         toast({
           title: "Sub-Admin Assigned",
           description: `${subAdminToAssign.name} has been assigned as sub-admin to the selected club.`,
         })
-        await fetchUsers()
-        await fetchSubAdmins()
+        await Promise.all([fetchUsers(), fetchSubAdmins()])
       } catch (error) {
         console.error('Error assigning sub-admin:', error)
         toast({
@@ -316,7 +295,26 @@ export default function AdminUserManagement() {
       }
     }
   }
-
+  
+  const fetchSubAdmins = async () => {
+    console.log('Fetching sub-admins...')
+    const { data, error } = await supabase
+      .from('students')
+      .select('*')
+      .eq('role', 'sub-admin')
+    
+    if (error) {
+      console.error('Error fetching sub-admins:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch sub-admins",
+        variant: "destructive",
+      })
+    } else {
+      console.log('Fetched sub-admins:', data)
+      setSubAdmins(data || [])
+    }
+  }
   const filteredUsers = users.filter(user => 
     user.student_id.includes(filter) || user.name.toLowerCase().includes(filter.toLowerCase())
   )
@@ -411,7 +409,7 @@ export default function AdminUserManagement() {
                   <TableCell>{subAdmin.email}</TableCell>
                   <TableCell>
                     <span className="bg-blue-100 text-blue-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded">
-                      {subAdmin.club}
+                        {clubs.find(club => club.id === subAdmin.club)?.name || 'N/A'}
                     </span>
                   </TableCell>
                 </TableRow>
