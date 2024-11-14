@@ -145,7 +145,19 @@ export default function AdminUserManagement() {
       try {
         console.log('Processing user:', userId, 'New role:', newRole);
         
-        // First update the role in students table
+        // First get the student_id from students table
+        const { data: studentData, error: studentError } = await supabase
+          .from('students')
+          .select('student_id')
+          .eq('id', userId)
+          .single();
+        
+        if (studentError) {
+          console.error('Error fetching student_id:', studentError);
+          throw studentError;
+        }
+  
+        // Update the role in students table
         const { data: updateData, error: updateError } = await supabase
           .from('students')
           .update({ role: newRole })
@@ -158,6 +170,17 @@ export default function AdminUserManagement() {
         }
         
         console.log('Update successful:', updateData);
+  
+        // Update the profiles table using student_id
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ role: newRole })
+          .eq('student_id', studentData.student_id)  // Using student_id instead of userId
+        
+        if (profileError) {
+          console.error('Profile update error:', profileError);
+          throw profileError;
+        }
   
         if (newRole === 'student') {
           console.log('Attempting to delete from sub_admins for user:', userId);
@@ -213,7 +236,6 @@ export default function AdminUserManagement() {
       description: "User roles have been updated successfully.",
     })
   }
-  
   const handleDeleteUser = (user: User) => {
     setUserToDelete(user)
   }

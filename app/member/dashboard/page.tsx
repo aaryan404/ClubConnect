@@ -12,13 +12,16 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toast } from '@/hooks/use-toast'
 
 interface Announcement {
-  id: number
+  image_url: any
+  id: string  // Changed from number to string since it's a UUID
   title: string
   content: string
   club_id: string
+  date: string
   created_at: string
-  image_url?: string
+  updated_at: string
 }
+
 
 interface Event {
   id: number
@@ -71,40 +74,58 @@ export default function StudentDashboard() {
   async function fetchAnnouncements(): Promise<Announcement[]> {
     const { data, error } = await supabase
       .from('announcements')
-      .select('id, title, content, club_id, created_at, image_url')
-      .eq('club_id', 'Global')
-      .order('created_at', { ascending: false })
+      .select('id, title, content, club_id, date, created_at, updated_at, image_url')
+      .order('date', { ascending: false })
       .limit(3)
-
+  
     if (error) {
       console.error('Error fetching announcements:', error)
       throw error
     }
-
-    return data
+  
+    return data || []
   }
-
+  
   async function fetchEvents(): Promise<Event[]> {
     const { data, error } = await supabase
       .from('events')
-      .select('id, title, date, join_clicks, clubs(id, name)')
+      .select(`
+        id, 
+        title, 
+        date, 
+        join_clicks,
+        club_id
+      `)
       .order('join_clicks', { ascending: false })
       .limit(3)
-
+  
     if (error) {
       console.error('Error fetching events:', error)
       throw error
     }
-
-    return data.map(item => ({
-      id: item.id,
-      title: item.title,
-      date: item.date,
-      join_clicks: item.join_clicks,
-      club_name: item.clubs[0].name
+  
+    // Fetch club names separately
+    const clubIds = data.map(event => event.club_id)
+    const { data: clubsData, error: clubsError } = await supabase
+      .from('clubs')
+      .select('id, name')
+      .in('id', clubIds)
+  
+    if (clubsError) {
+      console.error('Error fetching club names:', clubsError)
+      throw clubsError
+    }
+  
+    const clubMap = Object.fromEntries(clubsData.map(club => [club.id, club.name]))
+  
+    return data.map(event => ({
+      id: event.id,
+      title: event.title,
+      date: event.date,
+      join_clicks: event.join_clicks,
+      club_name: clubMap[event.club_id] || 'Unknown Club'
     }))
   }
-
   async function fetchClubs(): Promise<Club[]> {
     const { data, error } = await supabase
       .from('clubs')
