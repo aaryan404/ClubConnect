@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter, usePathname } from 'next/navigation'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Users, ClipboardList, Calendar, Bell, LogOut, Settings, TrendingUp, Loader2 } from 'lucide-react'
+import { Users, ClipboardList, Calendar, Bell, LogOut, Settings, TrendingUp, Loader2, Menu, X } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toast } from "@/hooks/use-toast"
@@ -27,6 +27,7 @@ export default function StudentNavigation({ active }: NavigationProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [studentProfile, setStudentProfile] = useState<StudentProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isNavbarOpen, setIsNavbarOpen] = useState(false)
   const supabase = createClientComponentClient()
 
   useEffect(() => {
@@ -92,6 +93,10 @@ export default function StudentNavigation({ active }: NavigationProps) {
     }
   }
 
+  const toggleNavbar = () => {
+    setIsNavbarOpen(!isNavbarOpen)
+  }
+
   if (isLoading) {
     return (
       <aside className="w-64 bg-white shadow-md flex flex-col items-center justify-center">
@@ -114,59 +119,75 @@ export default function StudentNavigation({ active }: NavigationProps) {
   ]
 
   return (
-    <aside className="w-64 bg-white shadow-md flex flex-col">
-      <div className="p-4 flex justify-between items-center border-b">
-        <h1 className="text-xl font-bold">ClubConnect</h1>
-        <Image
-          src="/images/logo/favicon.svg"
-          alt="ClubConnect Logo"
-          width={40}
-          height={40}
-          className="rounded-full"
-        />
-      </div>
-      <div className="p-4 flex-grow">
-        <Link href="/member/profile" className="flex items-center space-x-4 mb-6 hover:bg-gray-100 rounded p-2">
-          <Avatar>
-            <AvatarImage src={studentProfile?.avatar_url || "/placeholder.svg"} alt={studentProfile?.name || "Student"} />
-            <AvatarFallback>{studentProfile?.name?.[0] || "S"}</AvatarFallback>
-          </Avatar>
-          <div>
-            <h2 className="text-lg font-semibold">{studentProfile?.name || "Student Name"}</h2>
-            <p className="text-sm text-gray-500 capitalize">{studentProfile?.role || "Student"}</p>
-          </div>
-        </Link>
-        <nav className="space-y-2">
-          {navItems.map((item) => (
-            (!item.showFor || item.showFor.includes(studentProfile?.role || 'student')) && (
-              <NavItem 
-                key={item.href}
-                href={item.href} 
-                icon={<item.icon size={20} />} 
-                label={item.label} 
-                isActive={pathname === item.href}
-                disabled={isLoggingOut} 
-              />
-            )
-          ))}
-        </nav>
-      </div>
-      <div className="p-4 border-t">
-        <Button
-          variant="ghost"
-          className="w-full justify-start"
-          onClick={handleLogout}
-          disabled={isLoggingOut}
-        >
-          {isLoggingOut ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut size={20} className="mr-2" />}
-          {isLoggingOut ? "Logging out..." : "Logout"}
-        </Button>
-      </div>
-    </aside>
+    <>
+      <button
+        className={`fixed top-2 left-2 z-50 md:hidden bg-transparent p-2 rounded-md transition-all duration-300 ${
+          isNavbarOpen ? 'left-[15.5rem]' : ''
+        }`}
+        onClick={toggleNavbar}
+        aria-label={isNavbarOpen ? "Close navigation" : "Open navigation"}
+      >
+        {isNavbarOpen ? (
+          <X size={24} className="text-gray-800" />
+        ) : (
+          <Menu size={24} className="text-gray-800" />
+        )}
+      </button>
+      <aside className={`w-64 bg-white shadow-md flex flex-col fixed inset-y-0 left-0 z-40 transition-transform duration-300 ease-in-out ${isNavbarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+        <div className="p-4 flex justify-between items-center border-b">
+          <h1 className="text-xl font-bold">ClubConnect</h1>
+          <Image
+            src="/images/logo/favicon.svg"
+            alt="ClubConnect Logo"
+            width={40}
+            height={40}
+            className="rounded-full"
+          />
+        </div>
+        <div className="p-4 flex-grow overflow-y-auto">
+          <Link href="/member/profile" className="flex items-center space-x-4 mb-6 hover:bg-gray-100 rounded p-2">
+            <Avatar>
+              <AvatarImage src={studentProfile?.avatar_url || "/placeholder.svg"} alt={studentProfile?.name || "Student"} />
+              <AvatarFallback>{studentProfile?.name?.[0] || "S"}</AvatarFallback>
+            </Avatar>
+            <div>
+              <h2 className="text-lg font-semibold">{studentProfile?.name || "Student Name"}</h2>
+              <p className="text-sm text-gray-500 capitalize">{studentProfile?.role || "Student"}</p>
+            </div>
+          </Link>
+          <nav className="space-y-2">
+            {navItems.map((item) => (
+              (!item.showFor || item.showFor.includes(studentProfile?.role || 'student')) && (
+                <NavItem 
+                  key={item.href}
+                  href={item.href} 
+                  icon={<item.icon size={20} />} 
+                  label={item.label} 
+                  isActive={pathname === item.href}
+                  disabled={isLoggingOut} 
+                  onClick={() => setIsNavbarOpen(false)}
+                />
+              )
+            ))}
+          </nav>
+        </div>
+        <div className="p-4 border-t">
+          <Button
+            variant="ghost"
+            className="w-full justify-start"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+          >
+            {isLoggingOut ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut size={20} className="mr-2" />}
+            {isLoggingOut ? "Logging out..." : "Logout"}
+          </Button>
+        </div>
+      </aside>
+    </>
   )
 }
 
-function NavItem({ href, icon, label, isActive = false, disabled = false }: { href: string; icon: React.ReactNode; label: string; isActive?: boolean; disabled?: boolean }) {
+function NavItem({ href, icon, label, isActive = false, disabled = false, onClick }: { href: string; icon: React.ReactNode; label: string; isActive?: boolean; disabled?: boolean; onClick?: () => void }) {
   return (
     <Link 
       href={href} 
@@ -174,6 +195,8 @@ function NavItem({ href, icon, label, isActive = false, disabled = false }: { hr
       onClick={(e) => {
         if (disabled) {
           e.preventDefault()
+        } else if (onClick) {
+          onClick()
         }
       }}
     >

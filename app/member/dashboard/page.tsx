@@ -1,19 +1,18 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Users, ClipboardList, Calendar, Bell, LogOut, Settings, TrendingUp, Loader2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
+import { Loader2 } from 'lucide-react'
 import Navigation from '@/components/studentNavigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toast } from '@/hooks/use-toast'
 
 interface Announcement {
-  image_url: any
-  id: string  // Changed from number to string since it's a UUID
+  image_url: string
+  id: string
   title: string
   content: string
   club_id: string
@@ -21,7 +20,6 @@ interface Announcement {
   created_at: string
   updated_at: string
 }
-
 
 interface Event {
   id: number
@@ -42,11 +40,48 @@ export default function StudentDashboard() {
   const [events, setEvents] = useState<Event[]>([])
   const [clubs, setClubs] = useState<Club[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [currentAnnouncementIndex, setCurrentAnnouncementIndex] = useState(0)
   const supabase = createClientComponentClient()
+  const announcementRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetchDashboardData()
   }, [])
+
+  useEffect(() => {
+    const element = announcementRef.current
+    if (!element) return
+
+    let touchStartX = 0
+    let touchEndX = 0
+
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartX = e.touches[0].clientX
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      touchEndX = e.touches[0].clientX
+    }
+
+    const handleTouchEnd = () => {
+      const swipeThreshold = 50
+      if (touchStartX - touchEndX > swipeThreshold) {
+        handleSwipe('left')
+      } else if (touchEndX - touchStartX > swipeThreshold) {
+        handleSwipe('right')
+      }
+    }
+
+    element.addEventListener('touchstart', handleTouchStart, { passive: true })
+    element.addEventListener('touchmove', handleTouchMove, { passive: true })
+    element.addEventListener('touchend', handleTouchEnd)
+
+    return () => {
+      element.removeEventListener('touchstart', handleTouchStart)
+      element.removeEventListener('touchmove', handleTouchMove)
+      element.removeEventListener('touchend', handleTouchEnd)
+    }
+  }, [currentAnnouncementIndex, announcements.length])
 
   async function fetchDashboardData() {
     setIsLoading(true)
@@ -104,7 +139,6 @@ export default function StudentDashboard() {
       throw error
     }
   
-    // Fetch club names separately
     const clubIds = data.map(event => event.club_id)
     const { data: clubsData, error: clubsError } = await supabase
       .from('clubs')
@@ -126,6 +160,7 @@ export default function StudentDashboard() {
       club_name: clubMap[event.club_id] || 'Unknown Club'
     }))
   }
+
   async function fetchClubs(): Promise<Club[]> {
     const { data, error } = await supabase
       .from('clubs')
@@ -139,6 +174,14 @@ export default function StudentDashboard() {
     }
 
     return data
+  }
+
+  const handleSwipe = (direction: 'left' | 'right') => {
+    if (direction === 'left' && currentAnnouncementIndex < announcements.length - 1) {
+      setCurrentAnnouncementIndex(currentAnnouncementIndex + 1)
+    } else if (direction === 'right' && currentAnnouncementIndex > 0) {
+      setCurrentAnnouncementIndex(currentAnnouncementIndex - 1)
+    }
   }
 
   if (isLoading) {
@@ -156,8 +199,8 @@ export default function StudentDashboard() {
     <div className="flex h-screen bg-gray-100">
       <Navigation active={'dashboard'} />
 
-      <main className="flex-1 p-8 overflow-y-auto">
-        <h1 className="text-3xl font-bold mb-6">Student Dashboard</h1>
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+        <h1 className="text-2xl md:text-3xl font-bold mb-6 mt-8 md:mt-0">Student Dashboard</h1>
         
         <Card className="mb-8">
           <CardHeader className="flex flex-row items-center justify-between">
@@ -167,30 +210,48 @@ export default function StudentDashboard() {
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {announcements.map((announcement) => (
-                <Card key={announcement.id} className="bg-white shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-lg">{announcement.title}</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      Global Announcement • {new Date(announcement.created_at).toLocaleDateString()}
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    {announcement.image_url && (
-                      <div className="w-full h-[200px] mb-4 overflow-hidden">
-                        <Image
-                          src={announcement.image_url}
-                          alt={announcement.title}
-                          width={500}
-                          height={300}
-                          className="rounded-md object-cover w-full h-full"
-                        />
-                      </div>
-                    )}
-                    <p className="text-gray-700">{announcement.content}</p>
-                  </CardContent>
-                </Card>
+            <div 
+              className="relative overflow-hidden touch-pan-y"
+              ref={announcementRef}
+            >
+              <div 
+                className="flex transition-transform duration-300 ease-in-out"
+                style={{ transform: `translateX(-${currentAnnouncementIndex * 100}%)` }}
+              >
+                {announcements.map((announcement, index) => (
+                  <Card key={announcement.id} className="bg-white shadow-sm flex-shrink-0 w-full">
+                    <CardHeader>
+                      <CardTitle className="text-lg">{announcement.title}</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Global Announcement • {new Date(announcement.created_at).toLocaleDateString()}
+                      </p>
+                    </CardHeader>
+                    <CardContent>
+                      {announcement.image_url && (
+                        <div className="w-full h-[200px] mb-4 overflow-hidden">
+                          <Image
+                            src={announcement.image_url}
+                            alt={announcement.title}
+                            width={500}
+                            height={300}
+                            className="rounded-md object-cover w-full h-full"
+                          />
+                        </div>
+                      )}
+                      <p className="text-gray-700">{announcement.content}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-center mt-4">
+              {announcements.map((_, index) => (
+                <div
+                  key={index}
+                  className={`h-2 w-2 rounded-full mx-1 ${
+                    index === currentAnnouncementIndex ? 'bg-primary' : 'bg-gray-300'
+                  }`}
+                />
               ))}
             </div>
           </CardContent>
