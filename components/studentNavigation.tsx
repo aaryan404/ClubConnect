@@ -133,7 +133,9 @@ export default function StudentNavigation({ active }: NavigationProps) {
           <Menu size={24} className="text-gray-800" />
         )}
       </button>
-      <aside className={`w-64 bg-white shadow-md flex flex-col fixed inset-y-0 left-0 z-40 transition-transform duration-300 ease-in-out ${isNavbarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+      <aside className={`w-64 bg-white shadow-md flex flex-col fixed inset-y-0 left-0 z-40 transition-transform duration-300 ease-in-out md:translate-x-0 ${
+        isNavbarOpen ? 'translate-x-0' : '-translate-x-full'
+      } md:relative md:translate-x-0`}>
         <div className="p-4 flex justify-between items-center border-b">
           <h1 className="text-xl font-bold">ClubConnect</h1>
           <Image

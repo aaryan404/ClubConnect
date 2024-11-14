@@ -72,14 +72,27 @@ export default function StudentDashboard() {
       }
     }
 
-    element.addEventListener('touchstart', handleTouchStart, { passive: true })
-    element.addEventListener('touchmove', handleTouchMove, { passive: true })
-    element.addEventListener('touchend', handleTouchEnd)
+    const mobileQuery = window.matchMedia('(max-width: 768px)')
+    const handleMobileChange = (e: MediaQueryListEvent) => {
+      if (e.matches) {
+        element.addEventListener('touchstart', handleTouchStart, { passive: true })
+        element.addEventListener('touchmove', handleTouchMove, { passive: true })
+        element.addEventListener('touchend', handleTouchEnd)
+      } else {
+        element.removeEventListener('touchstart', handleTouchStart)
+        element.removeEventListener('touchmove', handleTouchMove)
+        element.removeEventListener('touchend', handleTouchEnd)
+      }
+    }
+
+    mobileQuery.addListener(handleMobileChange)
+    handleMobileChange({ matches: mobileQuery.matches } as MediaQueryListEvent)
 
     return () => {
       element.removeEventListener('touchstart', handleTouchStart)
       element.removeEventListener('touchmove', handleTouchMove)
       element.removeEventListener('touchend', handleTouchEnd)
+      mobileQuery.removeListener(handleMobileChange)
     }
   }, [currentAnnouncementIndex, announcements.length])
 
@@ -156,7 +169,7 @@ export default function StudentDashboard() {
       id: event.id,
       title: event.title,
       date: event.date,
-      join_clicks: event.join_clicks,
+      join_clicks: event.join_clicks ?? 0, // Use nullish coalescing to default to 0 if join_clicks is null or undefined
       club_name: clubMap[event.club_id] || 'Unknown Club'
     }))
   }
@@ -211,15 +224,15 @@ export default function StudentDashboard() {
           </CardHeader>
           <CardContent>
             <div 
-              className="relative overflow-hidden touch-pan-y"
+              className="relative overflow-hidden touch-pan-y md:touch-auto"
               ref={announcementRef}
             >
               <div 
-                className="flex transition-transform duration-300 ease-in-out"
+                className="flex md:block transition-transform duration-300 ease-in-out"
                 style={{ transform: `translateX(-${currentAnnouncementIndex * 100}%)` }}
               >
                 {announcements.map((announcement, index) => (
-                  <Card key={announcement.id} className="bg-white shadow-sm flex-shrink-0 w-full">
+                  <Card key={announcement.id} className="bg-white shadow-sm flex-shrink-0 w-full md:mb-4">
                     <CardHeader>
                       <CardTitle className="text-lg">{announcement.title}</CardTitle>
                       <p className="text-sm text-muted-foreground">
@@ -244,7 +257,7 @@ export default function StudentDashboard() {
                 ))}
               </div>
             </div>
-            <div className="flex justify-center mt-4">
+            <div className="flex justify-center mt-4 md:hidden">
               {announcements.map((_, index) => (
                 <div
                   key={index}
