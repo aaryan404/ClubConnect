@@ -44,6 +44,7 @@ export default function EventsPage() {
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false)
   const [events, setEvents] = useState<Event[]>([])
   const [clubs, setClubs] = useState<Club[]>([])
+  const [userClubs, setUserClubs] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const supabase = createClientComponentClient()
   const { toast } = useToast()
@@ -52,6 +53,7 @@ export default function EventsPage() {
     fetchEvents()
     fetchClubs()
     fetchJoinedEvents()
+    fetchUserClubs()
   }, [])
 
   const fetchEvents = async () => {
@@ -112,6 +114,29 @@ export default function EventsPage() {
       toast({
         title: "Error",
         description: "Failed to fetch joined events. Please try again later.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const fetchUserClubs = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('No user found')
+
+      const { data, error } = await supabase
+        .from('student_clubs')
+        .select('club_id')
+        .eq('student_id', user.id)
+      
+      if (error) throw error
+      
+      setUserClubs(data.map(item => item.club_id))
+    } catch (error) {
+      console.error('Error fetching user clubs:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch user clubs. Please try again later.",
         variant: "destructive",
       })
     }
@@ -196,6 +221,16 @@ export default function EventsPage() {
     <div className="flex h-screen bg-gray-100">
       <Navigation active="events" />
       <main className="flex-1 p-8 overflow-y-auto">
+        <style jsx global>{`
+          @keyframes blink {
+            0% { opacity: 0; }
+            50% { opacity: 1; }
+            100% { opacity: 0; }
+          }
+          .blink {
+            animation: blink 1s infinite;
+          }
+        `}</style>
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">Events</h1>
         </div>
@@ -211,7 +246,10 @@ export default function EventsPage() {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredEvents.map((event) => (
-            <Card key={event.id} className="bg-white shadow-sm flex flex-col">
+            <Card key={event.id} className="bg-white shadow-sm flex flex-col relative">
+              {!event.is_global && userClubs.includes(event.club_id!) && (
+                <div className="absolute top-2 right-2 w-3 h-3 bg-green-500 rounded-full blink" title="You are a member of this club"></div>
+              )}
               {event.image_url && (
                 <CardHeader className="p-0">
                   <Image
