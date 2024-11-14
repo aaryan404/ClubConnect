@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, School, Trash2, Edit } from 'lucide-react'
+import { Users, School, Trash2, Edit, Upload, MapPin, Clock, Globe } from 'lucide-react'
 import { toast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import Image from 'next/image'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,7 +35,11 @@ interface Event {
   title: string
   description: string
   date: string
+  time: string
+  location: string
   club_id: string | null
+  image_url: string | null
+  is_global: boolean
 }
 
 interface Club {
@@ -45,9 +50,19 @@ interface Club {
 export default function AdminEventManagement() {
   const [events, setEvents] = useState<Event[]>([])
   const [clubs, setClubs] = useState<Club[]>([])
-  const [newEvent, setNewEvent] = useState<Omit<Event, 'id'>>({ title: '', description: '', date: '', club_id: null })
+  const [newEvent, setNewEvent] = useState<Omit<Event, 'id'>>({ 
+    title: '', 
+    description: '', 
+    date: '', 
+    time: '',
+    location: '',
+    club_id: null, 
+    image_url: null,
+    is_global: false
+  })
   const [editingEvent, setEditingEvent] = useState<Event | null>(null)
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
   const supabase = createClientComponentClient()
 
   useEffect(() => {
@@ -102,32 +117,81 @@ export default function AdminEventManagement() {
 
   const handleClubChange = (value: string) => {
     if (editingEvent) {
-      setEditingEvent({ ...editingEvent, club_id: value === 'college' ? null : value })
+      if (value === 'global') {
+        setEditingEvent({ ...editingEvent, club_id: null, is_global: true })
+      } else {
+        setEditingEvent({ ...editingEvent, club_id: value, is_global: false })
+      }
     } else {
-      setNewEvent({ ...newEvent, club_id: value === 'college' ? null : value })
+      if (value === 'global') {
+        setNewEvent({ ...newEvent, club_id: null, is_global: true })
+      } else {
+        setNewEvent({ ...newEvent, club_id: value, is_global: false })
+      }
     }
   }
 
-  const handleAddEvent = async () => {
-    if (newEvent.title && newEvent.description && newEvent.date) {
-      const { data, error } = await supabase
-        .from('events')
-        .insert([newEvent])
-        .select()
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setImageFile(e.target.files[0])
+    }
+  }
 
-      if (error) {
+  const uploadImage = async (file: File) => {
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${Date.now()}.${fileExt}`
+    const { data, error } = await supabase.storage
+      .from('events_images')
+      .upload(fileName, file)
+
+    if (error) {
+      throw error
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('events_images')
+      .getPublicUrl(fileName)
+
+    return publicUrl
+  }
+
+  const handleAddEvent = async () => {
+    if (newEvent.title && newEvent.description && newEvent.date && newEvent.time && newEvent.location) {
+      try {
+        let imageUrl = null
+        if (imageFile) {
+          imageUrl = await uploadImage(imageFile)
+        }
+
+        const { data, error } = await supabase
+          .from('events')
+          .insert([{ ...newEvent, image_url: imageUrl }])
+          .select()
+
+        if (error) throw error
+
+        setNewEvent({ 
+          title: '', 
+          description: '', 
+          date: '', 
+          time: '',
+          location: '',
+          club_id: null, 
+          image_url: null,
+          is_global: false
+        })
+        setImageFile(null)
+        fetchEvents()
+        toast({
+          title: "Event Added",
+          description: "The event has been added successfully.",
+        })
+      } catch (error) {
         console.error('Error adding event:', error)
         toast({
           title: "Error",
           description: "Failed to add event",
           variant: "destructive",
-        })
-      } else {
-        setNewEvent({ title: '', description: '', date: '', club_id: null })
-        fetchEvents()
-        toast({
-          title: "Event Added",
-          description: "The event has been added successfully.",
         })
       }
     }
@@ -135,33 +199,46 @@ export default function AdminEventManagement() {
 
   const handleEditEvent = (event: Event) => {
     setEditingEvent(event)
+    setImageFile(null)
   }
 
   const handleUpdateEvent = async () => {
     if (editingEvent) {
-      const { error } = await supabase
-        .from('events')
-        .update({
-          title: editingEvent.title,
-          description: editingEvent.description,
-          date: editingEvent.date,
-          club_id: editingEvent.club_id
-        })
-        .eq('id', editingEvent.id)
+      try {
+        let imageUrl = editingEvent.image_url
+        if (imageFile) {
+          imageUrl = await uploadImage(imageFile)
+        }
 
-      if (error) {
+        const { error } = await supabase
+          .from('events')
+          .update({
+            title: editingEvent.title,
+            description: editingEvent.description,
+            date: editingEvent.date,
+            time: editingEvent.time,
+            location: editingEvent.location,
+            club_id: editingEvent.club_id,
+            image_url: imageUrl,
+            is_global: editingEvent.is_global
+          })
+          .eq('id', editingEvent.id)
+
+        if (error) throw error
+
+        setEditingEvent(null)
+        setImageFile(null)
+        fetchEvents()
+        toast({
+          title: "Event Updated",
+          description: "The event has been updated successfully.",
+        })
+      } catch (error) {
         console.error('Error updating event:', error)
         toast({
           title: "Error",
           description: "Failed to update event",
           variant: "destructive",
-        })
-      } else {
-        setEditingEvent(null)
-        fetchEvents()
-        toast({
-          title: "Event Updated",
-          description: "The event has been updated successfully.",
         })
       }
     }
@@ -173,24 +250,35 @@ export default function AdminEventManagement() {
 
   const confirmDeleteEvent = async () => {
     if (eventToDelete) {
-      const { error } = await supabase
-        .from('events')
-        .delete()
-        .eq('id', eventToDelete.id)
+      try {
+        if (eventToDelete.image_url) {
+          const fileName = eventToDelete.image_url.split('/').pop()
+          if (fileName) {
+            await supabase.storage
+              .from('events_images')
+              .remove([fileName])
+          }
+        }
 
-      if (error) {
-        console.error('Error deleting event:', error)
-        toast({
-          title: "Error",
-          description: "Failed to delete event",
-          variant: "destructive",
-        })
-      } else {
+        const { error } = await supabase
+          .from('events')
+          .delete()
+          .eq('id', eventToDelete.id)
+
+        if (error) throw error
+
         setEventToDelete(null)
         fetchEvents()
         toast({
           title: "Event Deleted",
           description: "The event has been deleted successfully.",
+        })
+      } catch (error) {
+        console.error('Error deleting event:', error)
+        toast({
+          title: "Error",
+          description: "Failed to delete event",
+          variant: "destructive",
         })
       }
     }
@@ -236,13 +324,33 @@ export default function AdminEventManagement() {
               />
             </div>
             <div>
-              <Label htmlFor="club">Club</Label>
+              <Label htmlFor="time">Event Time</Label>
+              <Input
+                id="time"
+                name="time"
+                type="time"
+                value={editingEvent ? editingEvent.time : newEvent.time}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div>
+              <Label htmlFor="location">Event Location</Label>
+              <Input
+                id="location"
+                name="location"
+                value={editingEvent ? editingEvent.location : newEvent.location}
+                onChange={handleInputChange}
+                placeholder="Enter event location"
+              />
+            </div>
+            <div>
+              <Label htmlFor="club">Event Type</Label>
               <Select
-                value={editingEvent ? editingEvent.club_id ?? undefined : newEvent.club_id ?? undefined}
+                value={editingEvent ? (editingEvent.is_global ? 'global' : editingEvent.club_id ?? '') : (newEvent.is_global ? 'global' : newEvent.club_id ?? '')}
                 onValueChange={handleClubChange}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select target club" />
+                  <SelectValue placeholder="Select event type" />
                 </SelectTrigger>
                 <SelectContent>
                   {clubs.map(club => (
@@ -250,6 +358,16 @@ export default function AdminEventManagement() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label htmlFor="image">Event Image</Label>
+              <Input
+                id="image"
+                name="image"
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+              />
             </div>
             {editingEvent ? (
               <Button onClick={handleUpdateEvent}>Update Event</Button>
@@ -266,10 +384,33 @@ export default function AdminEventManagement() {
                 <CardTitle>{event.title}</CardTitle>
               </CardHeader>
               <CardContent>
+                {event.image_url && (
+                  <div className="mb-4">
+                    <Image
+                      src={event.image_url}
+                      alt={event.title}
+                      width={300}
+                      height={200}
+                      className="rounded-lg object-cover"
+                    />
+                  </div>
+                )}
                 <p>{event.description}</p>
-                <p className="mt-2 text-sm text-gray-500">Date: {new Date(event.date).toLocaleDateString()}</p>
+                <p className="mt-2 text-sm text-gray-500 flex items-center">
+                  <Clock className="h-4 w-4 mr-1" />
+                  Date: {new Date(event.date).toLocaleDateString()} at {event.time}
+                </p>
+                <p className="mt-1 text-sm text-gray-500 flex items-center">
+                  <MapPin className="h-4 w-4 mr-1" />
+                  Location: {event.location}
+                </p>
                 <p className="mt-1 text-sm text-blue-600 flex items-center">
-                  {event.club_id ? (
+                  {event.is_global ? (
+                    <>
+                      <Globe className="h-4 w-4 mr-1" />
+                      Global Event
+                    </>
+                  ) : event.club_id ? (
                     <>
                       <Users className="h-4 w-4 mr-1" />
                       {clubs.find(club => club.id === event.club_id)?.name || 'Unknown Club'}
@@ -277,7 +418,7 @@ export default function AdminEventManagement() {
                   ) : (
                     <>
                       <School className="h-4 w-4 mr-1" />
-                      College general events
+                      College Event
                     </>
                   )}
                 </p>
@@ -302,7 +443,7 @@ export default function AdminEventManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure you want to delete this event?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the event.
+              This action cannot be undone. This will permanently delete the event and its associated image.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

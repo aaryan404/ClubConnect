@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { UserPlus, UserMinus } from 'lucide-react'
+import { UserPlus, UserMinus, Globe, Users } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -17,135 +17,179 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import Navigation from '@/components/studentNavigation'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useToast } from "@/hooks/use-toast"
 
-// Helper function to generate random dates in 2024
-const randomDate2024 = () => {
-  const month = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')
-  const day = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')
-  return `2024-${month}-${day}`
+interface Event {
+  id: number
+  title: string
+  description: string
+  date: string
+  time: string
+  location: string
+  club_id: string | null
+  image_url: string
+  is_global: boolean
 }
 
-// Updated mock data for events with the new list of clubs and 2024 dates
-const allEvents = [
-  {
-    id: 1,
-    title: "Coding Workshop",
-    description: "Learn the basics of web development",
-    date: randomDate2024(),
-    time: "14:00",
-    location: "Computer Lab",
-    club: "NCT Coding Club",
-    image: "/clubs logos/coding.png",
-    isGlobal: false,
-  },
-  {
-    id: 2,
-    title: "Robot Building Competition",
-    description: "Showcase your robotics skills",
-    date: randomDate2024(),
-    time: "10:00",
-    location: "Engineering Building",
-    club: "NCT Robotics Club",
-    image: "/clubs logos/robotics.png",
-    isGlobal: false,
-  },
-  {
-    id: 3,
-    title: "E-Sports Tournament",
-    description: "Compete in popular video games",
-    date: randomDate2024(),
-    time: "16:00",
-    location: "Student Center",
-    club: "NCT E-Sports Club",
-    image: "/clubs logos/e-sports.png",
-    isGlobal: false,
-  },
-  {
-    id: 4,
-    title: "Board Game Night",
-    description: "Enjoy a variety of board games",
-    date: randomDate2024(),
-    time: "18:00",
-    location: "Recreation Room",
-    club: "NCT Boardgames Club",
-    image: "/clubs logos/boardgames.png",
-    isGlobal: false,
-  },
-  {
-    id: 5,
-    title: "Cricket Match",
-    description: "Inter-college cricket tournament",
-    date: randomDate2024(),
-    time: "09:00",
-    location: "Sports Ground",
-    club: "NCT Cricket Club",
-    image: "/clubs logos/cricket.png",
-    isGlobal: false,
-  },
-  {
-    id: 6,
-    title: "Basketball Tournament",
-    description: "Annual basketball championship",
-    date: randomDate2024(),
-    time: "14:00",
-    location: "Gymnasium",
-    club: "Basketball Club",
-    image: "/clubs logos/basketball.png",
-    isGlobal: false,
-  },
-  {
-    id: 7,
-    title: "Badminton Tournament",
-    description: "Singles and doubles badminton matches",
-    date: randomDate2024(),
-    time: "10:00",
-    location: "Indoor Sports Complex",
-    club: "Badminton Club",
-    image: "/clubs logos/badminton.png",
-    isGlobal: false,
-  },
-  {
-    id: 8,
-    title: "Soccer Championship",
-    description: "Inter-department soccer tournament",
-    date: randomDate2024(),
-    time: "15:00",
-    location: "Soccer Field",
-    club: "Soccer Club",
-    image: "/clubs logos/soccer.png",
-    isGlobal: false,
-  },
-]
+interface Club {
+  id: string
+  name: string
+}
 
 export default function EventsPage() {
   const [activeTab, setActiveTab] = useState("all")
   const [joinedEvents, setJoinedEvents] = useState<number[]>([])
   const [eventToLeave, setEventToLeave] = useState<number | null>(null)
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false)
+  const [events, setEvents] = useState<Event[]>([])
+  const [clubs, setClubs] = useState<Club[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const supabase = createClientComponentClient()
+  const { toast } = useToast()
 
-  const filteredEvents = allEvents.filter(event => {
+  useEffect(() => {
+    fetchEvents()
+    fetchClubs()
+    fetchJoinedEvents()
+  }, [])
+
+  const fetchEvents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+      
+      if (error) throw error
+      
+      setEvents(data || [])
+    } catch (error) {
+      console.error('Error fetching events:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch events. Please try again later.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const fetchClubs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clubs')
+        .select('*')
+      
+      if (error) throw error
+      
+      setClubs(data || [])
+    } catch (error) {
+      console.error('Error fetching clubs:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch clubs. Please try again later.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const fetchJoinedEvents = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('No user found')
+
+      const { data, error } = await supabase
+        .from('student_events')
+        .select('event_id')
+        .eq('student_id', user.id)
+      
+      if (error) throw error
+      
+      setJoinedEvents(data.map(item => item.event_id))
+    } catch (error) {
+      console.error('Error fetching joined events:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch joined events. Please try again later.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleJoinEvent = async (eventId: number) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('No user found')
+
+      if (!joinedEvents.includes(eventId)) {
+        const { error } = await supabase
+          .from('student_events')
+          .insert({ student_id: user.id, event_id: eventId })
+        
+        if (error) throw error
+
+        setJoinedEvents(prev => [...prev, eventId])
+        toast({
+          title: "Success",
+          description: "You have joined the event.",
+        })
+      } else {
+        setEventToLeave(eventId)
+        setIsLeaveDialogOpen(true)
+      }
+    } catch (error) {
+      console.error('Error joining event:', error)
+      toast({
+        title: "Error",
+        description: "Failed to join the event. Please try again later.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleLeaveEvent = async () => {
+    if (eventToLeave) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error('No user found')
+
+        const { error } = await supabase
+          .from('student_events')
+          .delete()
+          .match({ student_id: user.id, event_id: eventToLeave })
+        
+        if (error) throw error
+
+        setJoinedEvents(prev => prev.filter(id => id !== eventToLeave))
+        toast({
+          title: "Success",
+          description: "You have left the event.",
+        })
+      } catch (error) {
+        console.error('Error leaving event:', error)
+        toast({
+          title: "Error",
+          description: "Failed to leave the event. Please try again later.",
+          variant: "destructive",
+        })
+      } finally {
+        setEventToLeave(null)
+        setIsLeaveDialogOpen(false)
+      }
+    }
+  }
+
+  const filteredEvents = events.filter(event => {
     if (activeTab === "all") return true
-    if (activeTab === "global") return event.isGlobal
-    if (activeTab === "club") return !event.isGlobal
+    if (activeTab === "global") return event.is_global
+    if (activeTab === "club") return !event.is_global
     if (activeTab === "joined") return joinedEvents.includes(event.id)
     return true
   })
 
-  const handleJoinEvent = (eventId: number) => {
-    if (!joinedEvents.includes(eventId)) {
-      setJoinedEvents(prev => [...prev, eventId])
-    } else {
-      setEventToLeave(eventId)
-      setIsLeaveDialogOpen(true)
-    }
-  }
-
-  const handleLeaveEvent = () => {
-    if (eventToLeave) {
-      setJoinedEvents(prev => prev.filter(id => id !== eventToLeave))
-      setEventToLeave(null)
-    }
-    setIsLeaveDialogOpen(false)
+  if (isLoading) {
+    return <div>Loading...</div>
   }
 
   return (
@@ -168,10 +212,10 @@ export default function EventsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredEvents.map((event) => (
             <Card key={event.id} className="bg-white shadow-sm flex flex-col">
-              {event.image && (
+              {event.image_url && (
                 <CardHeader className="p-0">
                   <Image
-                    src={event.image}
+                    src={event.image_url}
                     alt={event.title}
                     width={400}
                     height={200}
@@ -186,8 +230,18 @@ export default function EventsPage() {
                   <p className="text-sm"><strong>Date:</strong> {event.date}</p>
                   <p className="text-sm"><strong>Time:</strong> {event.time}</p>
                   <p className="text-sm"><strong>Location:</strong> {event.location}</p>
-                  <p className="text-sm">
-                    <strong>{event.isGlobal ? "Global Event" : `Club: ${event.club}`}</strong>
+                  <p className="text-sm flex items-center">
+                    {event.is_global ? (
+                      <>
+                        <Globe className="mr-1 h-4 w-4" />
+                        <strong>Global Event</strong>
+                      </>
+                    ) : (
+                      <>
+                        <Users className="mr-1 h-4 w-4" />
+                        <strong>Club: {clubs.find(club => club.id === event.club_id)?.name || 'Unknown'}</strong>
+                      </>
+                    )}
                   </p>
                 </div>
               </CardContent>

@@ -77,18 +77,28 @@ export default function AdminClubManagement() {
         const file = newClub.logo
         const fileExt = file.name.split('.').pop()
         const fileName = `${Date.now()}.${fileExt}`
-        const filePath = `club-logos/${fileName}`
+        const filePath = `${fileName}`
 
-        const { error: uploadError } = await supabase.storage
-          .from('club-images')
+        const { error: uploadError, data } = await supabase.storage
+          .from('club_logos')
           .upload(filePath, file)
 
-        if (uploadError) throw uploadError
+        if (uploadError) {
+          if (uploadError.message.includes('404')) {
+            throw new Error("The 'club_logos' bucket was not found. Please ensure it exists in your Supabase storage.")
+          } else {
+            throw uploadError
+          }
+        }
 
         // Get the public URL of the uploaded image
         const { data: urlData } = supabase.storage
-          .from('club-images')
+          .from('club_logos')
           .getPublicUrl(filePath)
+
+        if (!urlData || !urlData.publicUrl) {
+          throw new Error("Failed to get public URL for uploaded image")
+        }
 
         imageUrl = urlData.publicUrl
       }
@@ -103,7 +113,13 @@ export default function AdminClubManagement() {
         })
         .select()
 
-      if (clubError) throw clubError
+      if (clubError) {
+        if (clubError.code === '42501') {
+          throw new Error("You don't have permission to create a club. Please check the RLS policy for the 'clubs' table.")
+        } else {
+          throw clubError
+        }
+      }
 
       toast({
         title: "Success",
@@ -115,7 +131,7 @@ export default function AdminClubManagement() {
       console.error('Error creating club:', error)
       toast({
         title: "Error",
-        description: "Failed to create club",
+        description: error instanceof Error ? error.message : "Failed to create club. Please check the console for more details.",
         variant: "destructive",
       })
     } finally {
@@ -129,10 +145,20 @@ export default function AdminClubManagement() {
     try {
       // Delete the club's logo from storage if it exists
       if (clubToDelete.image_url) {
-        const imagePath = clubToDelete.image_url.split('/').slice(-2).join('/')
-        await supabase.storage
-          .from('club-images')
-          .remove([imagePath])
+        const fileName = clubToDelete.image_url.split('/').pop()
+        if (fileName) {
+          const { error: deleteError } = await supabase.storage
+            .from('club_logos')
+            .remove([fileName])
+          
+          if (deleteError) {
+            if (deleteError.message.includes('404')) {
+              console.warn("The image file was not found in storage. Proceeding with club deletion.")
+            } else {
+              throw deleteError
+            }
+          }
+        }
       }
 
       // Delete the club from the database
@@ -141,7 +167,13 @@ export default function AdminClubManagement() {
         .delete()
         .eq('id', clubToDelete.id)
       
-      if (error) throw error
+      if (error) {
+        if (error.code === '42501') {
+          throw new Error("You don't have permission to delete this club. Please check the RLS policy for the 'clubs' table.")
+        } else {
+          throw error
+        }
+      }
 
       toast({
         title: "Success",
@@ -152,7 +184,7 @@ export default function AdminClubManagement() {
       console.error('Error deleting club:', error)
       toast({
         title: "Error",
-        description: "Failed to delete club",
+        description: error instanceof Error ? error.message : "Failed to delete club. Please check the console for more details.",
         variant: "destructive",
       })
     } finally {
@@ -226,6 +258,11 @@ export default function AdminClubManagement() {
                         width={40}
                         height={40}
                         className="rounded-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = "/placeholder.svg";
+                          target.onerror = null;
+                        }}
                       />
                     ) : (
                       <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
