@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2 } from 'lucide-react'
+import { Loader2, UserPlus, Check } from 'lucide-react'
 import Navigation from '@/components/studentNavigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toast } from '@/hooks/use-toast'
@@ -33,6 +33,7 @@ interface Club {
   id: number
   name: string
   member_count: number
+  joined: boolean
 }
 
 export default function StudentDashboard() {
@@ -47,54 +48,6 @@ export default function StudentDashboard() {
   useEffect(() => {
     fetchDashboardData()
   }, [])
-
-  useEffect(() => {
-    const element = announcementRef.current
-    if (!element) return
-
-    let touchStartX = 0
-    let touchEndX = 0
-
-    const handleTouchStart = (e: TouchEvent) => {
-      touchStartX = e.touches[0].clientX
-    }
-
-    const handleTouchMove = (e: TouchEvent) => {
-      touchEndX = e.touches[0].clientX
-    }
-
-    const handleTouchEnd = () => {
-      const swipeThreshold = 50
-      if (touchStartX - touchEndX > swipeThreshold) {
-        handleSwipe('left')
-      } else if (touchEndX - touchStartX > swipeThreshold) {
-        handleSwipe('right')
-      }
-    }
-
-    const mobileQuery = window.matchMedia('(max-width: 768px)')
-    const handleMobileChange = (e: MediaQueryListEvent) => {
-      if (e.matches) {
-        element.addEventListener('touchstart', handleTouchStart, { passive: true })
-        element.addEventListener('touchmove', handleTouchMove, { passive: true })
-        element.addEventListener('touchend', handleTouchEnd)
-      } else {
-        element.removeEventListener('touchstart', handleTouchStart)
-        element.removeEventListener('touchmove', handleTouchMove)
-        element.removeEventListener('touchend', handleTouchEnd)
-      }
-    }
-
-    mobileQuery.addListener(handleMobileChange)
-    handleMobileChange({ matches: mobileQuery.matches } as MediaQueryListEvent)
-
-    return () => {
-      element.removeEventListener('touchstart', handleTouchStart)
-      element.removeEventListener('touchmove', handleTouchMove)
-      element.removeEventListener('touchend', handleTouchEnd)
-      mobileQuery.removeListener(handleMobileChange)
-    }
-  }, [currentAnnouncementIndex, announcements.length])
 
   async function fetchDashboardData() {
     setIsLoading(true)
@@ -169,24 +122,77 @@ export default function StudentDashboard() {
       id: event.id,
       title: event.title,
       date: event.date,
-      join_clicks: event.join_clicks ?? 0, // Use nullish coalescing to default to 0 if join_clicks is null or undefined
+      join_clicks: event.join_clicks ?? 0,
       club_name: clubMap[event.club_id] || 'Unknown Club'
     }))
   }
 
   async function fetchClubs(): Promise<Club[]> {
+    const { data: user } = await supabase.auth.getUser()
+    if (!user.user) throw new Error("User not found")
+
     const { data, error } = await supabase
       .from('clubs')
       .select('id, name, member_count')
       .order('member_count', { ascending: false })
-      .limit(2)
-
+      .limit(4)
+  
     if (error) {
       console.error('Error fetching clubs:', error)
       throw error
     }
+  
+    const { data: userClubs, error: userClubsError } = await supabase
+      .from('student_clubs')
+      .select('club_id')
+      .eq('student_id', user.user.id)
 
-    return data
+    if (userClubsError) {
+      console.error('Error fetching user clubs:', userClubsError)
+      throw userClubsError
+    }
+
+    const userClubIds = new Set(userClubs.map(uc => uc.club_id))
+
+    // Filter out the "Global" club, limit to 3 clubs, and add joined status
+    const filteredClubs = data
+      .filter(club => club.name !== "Global")
+      .slice(0, 3)
+      .map(club => ({
+        ...club,
+        joined: userClubIds.has(club.id)
+      }))
+
+    return filteredClubs
+  }
+
+  const handleJoinClub = async (clubId: number) => {
+    try {
+      const { data: user } = await supabase.auth.getUser()
+      if (!user.user) throw new Error("User not found")
+
+      const { error } = await supabase
+        .from('student_clubs')
+        .insert({ student_id: user.user.id, club_id: clubId })
+
+      if (error) throw error
+
+      setClubs(clubs.map(club => 
+        club.id === clubId ? { ...club, joined: true, member_count: club.member_count + 1 } : club
+      ))
+
+      toast({
+        title: "Success",
+        description: "You have joined the club!",
+      })
+    } catch (error) {
+      console.error('Error joining club:', error)
+      toast({
+        title: "Error",
+        description: "Failed to join the club. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleSwipe = (direction: 'left' | 'right') => {
@@ -275,7 +281,7 @@ export default function StudentDashboard() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Popular Events</CardTitle>
               <Button variant="outline" asChild>
-                <Link href="/student/events">View All Events</Link>
+                <Link href="/member/events">View All Events</Link>
               </Button>
             </CardHeader>
             <CardContent>
@@ -299,7 +305,7 @@ export default function StudentDashboard() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Trending Clubs</CardTitle>
               <Button variant="outline" asChild>
-                <Link href="/student/clubs">View All Clubs</Link>
+                <Link href="/member/clubs">View All Clubs</Link>
               </Button>
             </CardHeader>
             <CardContent>
@@ -310,7 +316,24 @@ export default function StudentDashboard() {
                       <h3 className="font-semibold">{club.name}</h3>
                       <p className="text-sm text-muted-foreground">{club.member_count} members</p>
                     </div>
-                    <Button size="sm">Join</Button>
+                    <Button 
+                      size="sm" 
+                      onClick={() => !club.joined && handleJoinClub(club.id)}
+                      disabled={club.joined}
+                      variant={club.joined ? "outline" : "default"}
+                    >
+                      {club.joined ? (
+                        <>
+                          <Check className="mr-2 h-4 w-4" />
+                          Joined
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="mr-2 h-4 w-4" />
+                          Join
+                        </>
+                      )}
+                    </Button>
                   </div>
                 ))}
               </div>

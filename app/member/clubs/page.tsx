@@ -61,10 +61,12 @@ export default function ClubsPage() {
 
       const joinedClubIds = new Set(studentClubsData.map(sc => sc.club_id))
 
-      const formattedClubs = clubsData.map(club => ({
-        ...club,
-        joined: joinedClubIds.has(club.id)
-      }))
+      const formattedClubs = clubsData
+        .filter(club => club.name !== "Global")
+        .map(club => ({
+          ...club,
+          joined: joinedClubIds.has(club.id)
+        }))
 
       setClubs(formattedClubs)
     } catch (error) {
