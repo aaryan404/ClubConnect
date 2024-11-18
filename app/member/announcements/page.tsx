@@ -9,6 +9,17 @@ import Navigation from '@/components/studentNavigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useToast } from "@/hooks/use-toast"
 
+const blinkAnimation = `
+  @keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  .blink {
+    animation: blink .5s linear infinite;
+  }
+`;
+
 interface Announcement {
   id: string
   title: string
@@ -105,6 +116,8 @@ export default function AnnouncementsPage() {
   }
 
   return (
+    <>
+      <style jsx>{blinkAnimation}</style>
     <div className="flex h-screen bg-gray-100">
       <Navigation active="announcements" />
       <main className="flex-1 p-8 overflow-y-auto">
@@ -134,8 +147,7 @@ export default function AnnouncementsPage() {
               <Card key={announcement.id} className="bg-white shadow-sm relative">
                 {userClubs.includes(announcement.club_id) && (
                   <div 
-                    className="absolute top-0 right-0 w-3 h-3 bg-green-500 rounded-full blink" 
-                    aria-hidden="true"
+                    className="absolute top-2 right-2 w-3 h-3 bg-green-500 rounded-full blink" 
                     title="You are a member of this club"
                   />
                 )}
@@ -167,5 +179,6 @@ export default function AnnouncementsPage() {
         </div>
       </main>
     </div>
+    </>
   )
 }

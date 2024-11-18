@@ -27,6 +27,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from 'lucide-react'
 
 interface Club {
   id: string
@@ -41,6 +43,7 @@ export default function AdminClubManagement() {
   const [newClub, setNewClub] = useState({ name: "", description: "", logo: null as File | null })
   const [isLoading, setIsLoading] = useState(false)
   const [clubToDelete, setClubToDelete] = useState<Club | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
   const supabase = createClientComponentClient()
 
@@ -68,8 +71,25 @@ export default function AdminClubManagement() {
   const handleCreateClub = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError(null)
 
     try {
+      // Check if a club with the same name already exists
+      const { data: existingClub, error: checkError } = await supabase
+        .from('clubs')
+        .select('name')
+        .eq('name', newClub.name)
+        .single()
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        throw checkError
+      }
+
+      if (existingClub) {
+        setError("A club with this name already exists.")
+        return
+      }
+
       let imageUrl = null
 
       // If a logo was provided, upload it to storage
@@ -129,11 +149,7 @@ export default function AdminClubManagement() {
       fetchClubs()
     } catch (error) {
       console.error('Error creating club:', error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create club. Please check the console for more details.",
-        variant: "destructive",
-      })
+      setError(error instanceof Error ? error.message : "Failed to create club. Please check the console for more details.")
     } finally {
       setIsLoading(false)
     }
@@ -201,6 +217,13 @@ export default function AdminClubManagement() {
         
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h2 className="text-xl font-semibold mb-4">Create New Club</h2>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
           <form onSubmit={handleCreateClub} className="space-y-4">
             <div>
               <Label htmlFor="clubName">Club Name</Label>

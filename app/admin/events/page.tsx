@@ -316,12 +316,13 @@ export default function AdminEventManagement() {
             <div>
               <Label htmlFor="date">Event Date</Label>
               <Input
-                id="date"
-                name="date"
-                type="date"
-                value={editingEvent ? editingEvent.date : newEvent.date}
-                onChange={handleInputChange}
-              />
+  id="date"
+  name="date"
+  type="date"
+  value={editingEvent ? editingEvent.date : newEvent.date}
+  onChange={handleInputChange}
+  min={new Date().toISOString().split('T')[0]}
+/>
             </div>
             <div>
               <Label htmlFor="time">Event Time</Label>

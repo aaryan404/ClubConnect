@@ -48,16 +48,18 @@ interface Announcement {
   id: string
   title: string
   content: string
-  announcement_date: string
+  date: string
+  club_id: string
 }
 
 interface Event {
   id: string
   title: string
   description: string
-  event_date: string
-  event_time: string
+  date: string
+  time: string
   location: string
+  club_id: string
 }
 
 export default function ClubManagementPage() {
@@ -80,7 +82,6 @@ export default function ClubManagementPage() {
   const fetchClubData = async () => {
     setIsLoading(true)
     try {
-      // Step 1: Fetch the current authenticated user's email
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError) throw userError
 
@@ -88,7 +89,6 @@ export default function ClubManagementPage() {
         throw new Error("User not authenticated or email not available")
       }
 
-      // Step 2: Check if the user exists in the students table and is a sub-admin
       const { data: studentData, error: studentError } = await supabase
         .from('students')
         .select('id, role')
@@ -101,7 +101,6 @@ export default function ClubManagementPage() {
         throw new Error("User is not authorized as a sub-admin")
       }
 
-      // Step 3: Find the matching entry in the sub_admins table
       const { data: subAdminData, error: subAdminError } = await supabase
         .from('sub_admins')
         .select('club_id')
@@ -114,7 +113,6 @@ export default function ClubManagementPage() {
         throw new Error("No sub-admin data found for this user")
       }
 
-      // Step 4: Fetch the club information
       const { data: clubData, error: clubError } = await supabase
         .from('clubs')
         .select('*')
@@ -125,22 +123,18 @@ export default function ClubManagementPage() {
 
       setClub(clubData)
 
-      // Fetch announcements
       const { data: announcementsData, error: announcementsError } = await supabase
-        .from('sub_admin_announcements')
+        .from('announcements')
         .select('*')
-        .eq('sub_admin_id', studentData.id)
         .eq('club_id', subAdminData.club_id)
 
       if (announcementsError) throw announcementsError
 
       setAnnouncements(announcementsData || [])
 
-      // Fetch events
       const { data: eventsData, error: eventsError } = await supabase
-        .from('sub_admin_events')
+        .from('events')
         .select('*')
-        .eq('sub_admin_id', studentData.id)
         .eq('club_id', subAdminData.club_id)
 
       if (eventsError) throw eventsError
@@ -160,29 +154,17 @@ export default function ClubManagementPage() {
 
   const handleCreateAnnouncement = async (formData: FormData) => {
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError) throw userError
-
-      if (!user) {
-        throw new Error("User not authenticated")
+      if (!club) {
+        throw new Error("Club data not available")
       }
 
-      const { data: subAdminData, error: subAdminError } = await supabase
-        .from('sub_admins')
-        .select('id, club_id')
-        .eq('user_id', user.id)
-        .single()
-
-      if (subAdminError) throw subAdminError
-
       const { data, error } = await supabase
-        .from('sub_admin_announcements')
+        .from('announcements')
         .insert({
-          sub_admin_id: subAdminData.id,
-          club_id: subAdminData.club_id,
+          club_id: club.id,
           title: formData.get('title') as string,
           content: formData.get('content') as string,
-          announcement_date: new Date().toISOString(),
+          date: new Date().toISOString(),
         })
         .select()
 
@@ -207,7 +189,7 @@ export default function ClubManagementPage() {
   const handleEditAnnouncement = async (formData: FormData) => {
     try {
       const { data, error } = await supabase
-        .from('sub_admin_announcements')
+        .from('announcements')
         .update({
           title: formData.get('title') as string,
           content: formData.get('content') as string,
@@ -235,30 +217,18 @@ export default function ClubManagementPage() {
 
   const handleCreateEvent = async (formData: FormData) => {
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError) throw userError
-
-      if (!user) {
-        throw new Error("User not authenticated")
+      if (!club) {
+        throw new Error("Club data not available")
       }
 
-      const { data: subAdminData, error: subAdminError } = await supabase
-        .from('sub_admins')
-        .select('id, club_id')
-        .eq('user_id', user.id)
-        .single()
-
-      if (subAdminError) throw subAdminError
-
       const { data, error } = await supabase
-        .from('sub_admin_events')
+        .from('events')
         .insert({
-          sub_admin_id: subAdminData.id,
-          club_id: subAdminData.club_id,
+          club_id: club.id,
           title: formData.get('title') as string,
           description: formData.get('description') as string,
-          event_date: formData.get('date') as string,
-          event_time: formData.get('time') as string,
+          date: formData.get('date') as string,
+          time: formData.get('time') as string,
           location: formData.get('location') as string,
         })
         .select()
@@ -284,12 +254,12 @@ export default function ClubManagementPage() {
   const handleEditEvent = async (formData: FormData) => {
     try {
       const { data, error } = await supabase
-        .from('sub_admin_events')
+        .from('events')
         .update({
           title: formData.get('title') as string,
           description: formData.get('description') as string,
-          event_date: formData.get('date') as string,
-          event_time: formData.get('time') as string,
+          date: formData.get('date') as string,
+          time: formData.get('time') as string,
           location: formData.get('location') as string,
         })
         .eq('id', currentItem!.id)
@@ -318,7 +288,7 @@ export default function ClubManagementPage() {
 
     try {
       const { error } = await supabase
-        .from(itemToDelete.type === 'announcement' ? 'sub_admin_announcements' : 'sub_admin_events')
+        .from(itemToDelete.type === 'announcement' ? 'announcements' : 'events')
         .delete()
         .eq('id', itemToDelete.id)
 
@@ -421,7 +391,7 @@ export default function ClubManagementPage() {
                   </CardHeader>
                   <CardContent>
                     <p>{announcement.content}</p>
-                    <p className="text-sm text-gray-500 mt-2">Date: {new Date(announcement.announcement_date).toLocaleDateString()}</p>
+                    <p className="text-sm text-gray-500 mt-2">Date: {new Date(announcement.date).toLocaleDateString()}</p>
                   </CardContent>
                   <CardFooter className="flex justify-between">
                     <Button variant="outline" size="sm" onClick={() => {
@@ -476,13 +446,13 @@ export default function ClubManagementPage() {
                         <Label htmlFor="date" className="text-right">
                           Date
                         </Label>
-                        <Input id="date" name="date" type="date" defaultValue={(currentItem as Event)?.event_date} className="col-span-3" />
+                        <Input id="date" name="date" type="date" defaultValue={(currentItem as Event)?.date} className="col-span-3" />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="time" className="text-right">
                           Time
                         </Label>
-                        <Input id="time" name="time" type="time" defaultValue={(currentItem as Event)?.event_time} className="col-span-3" />
+                        <Input id="time" name="time" type="time" defaultValue={(currentItem as Event)?.time} className="col-span-3" />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="location" className="text-right">
@@ -506,8 +476,8 @@ export default function ClubManagementPage() {
                   </CardHeader>
                   <CardContent>
                     <p>{event.description}</p>
-                    <p className="text-sm text-gray-500 mt-2">Date: {event.event_date}</p>
-                    <p className="text-sm text-gray-500">Time: {event.event_time}</p>
+                    <p className="text-sm text-gray-500 mt-2">Date: {event.date}</p>
+                    <p className="text-sm text-gray-500">Time: {event.time}</p>
                     <p className="text-sm text-gray-500">Location: {event.location}</p>
                   </CardContent>
                   <CardFooter className="flex justify-between">
