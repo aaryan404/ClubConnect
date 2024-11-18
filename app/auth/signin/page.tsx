@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Eye, EyeOff } from 'lucide-react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { AuthError } from '@supabase/supabase-js'
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function SignInPage() {
   const [identifier, setIdentifier] = useState('')
@@ -17,6 +18,7 @@ export default function SignInPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
   const [isLoading, setIsLoading] = useState(false)
+  const [alertError, setAlertError] = useState<string | null>(null)
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientComponentClient()
@@ -38,6 +40,7 @@ export default function SignInPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setAlertError(null)
     
     if (validateForm()) {
       setIsLoading(true)
@@ -85,7 +88,8 @@ export default function SignInPage() {
 
         if (authError) {
           if (authError instanceof AuthError && authError.message === 'Invalid login credentials') {
-            throw new Error('Invalid email/ID or password. Please try again.')
+            setAlertError('Invalid email/ID or password. Please try again.')
+            return
           }
           throw authError
         }
@@ -139,11 +143,11 @@ export default function SignInPage() {
         router.push(redirectPath)
       } catch (error) {
         console.error('Login failed:', error)
-        toast({
-          title: "Sign in failed",
-          description: error instanceof Error ? error.message : "An unexpected error occurred",
-          variant: "destructive",
-        })
+        if (error instanceof Error) {
+          setAlertError(error.message)
+        } else {
+          setAlertError("An unexpected error occurred")
+        }
       } finally {
         setIsLoading(false)
       }
@@ -158,6 +162,12 @@ export default function SignInPage() {
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="p-8 bg-white rounded-lg shadow-md w-96">
         <h1 className="text-2xl font-bold mb-6 text-center">Sign In to ClubConnect</h1>
+        {alertError && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{alertError}</AlertDescription>
+          </Alert>
+        )}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="identifier">Email or ID</Label>

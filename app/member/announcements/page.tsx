@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2 } from "lucide-react"
+import { Loader2 } from 'lucide-react'
 import Navigation from '@/components/studentNavigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { toast } from "@/hooks/use-toast"
+import { useToast } from "@/hooks/use-toast"
 
 interface Announcement {
   id: string
@@ -22,15 +22,45 @@ interface Announcement {
   }
 }
 
+interface UserClub {
+  club_id: string
+}
+
 export default function AnnouncementsPage() {
   const [activeTab, setActiveTab] = useState("all")
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [userClubs, setUserClubs] = useState<string[]>([])
   const supabase = createClientComponentClient()
+  const { toast } = useToast()
 
   useEffect(() => {
+    fetchUserClubs()
     fetchAnnouncements()
   }, [activeTab])
+
+  const fetchUserClubs = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('No user found')
+
+      const { data, error } = await supabase
+        .from('student_clubs')
+        .select('club_id')
+        .eq('student_id', user.id)
+      
+      if (error) throw error
+      
+      setUserClubs((data as UserClub[]).map(club => club.club_id))
+    } catch (error) {
+      console.error('Error fetching user clubs:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch user clubs. Please try again later.",
+        variant: "destructive",
+      })
+    }
+  }
 
   async function fetchAnnouncements() {
     setIsLoading(true)
@@ -101,7 +131,14 @@ export default function AnnouncementsPage() {
             </Card>
           ) : (
             announcements.map((announcement) => (
-              <Card key={announcement.id} className="bg-white shadow-sm">
+              <Card key={announcement.id} className="bg-white shadow-sm relative">
+                {userClubs.includes(announcement.club_id) && (
+                  <div 
+                    className="absolute top-0 right-0 w-3 h-3 bg-green-500 rounded-full blink" 
+                    aria-hidden="true"
+                    title="You are a member of this club"
+                  />
+                )}
                 <CardHeader>
                   <CardTitle className="text-xl">{announcement.title}</CardTitle>
                   <p className="text-sm text-muted-foreground">

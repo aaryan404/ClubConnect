@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -39,6 +39,7 @@ export default function StudentNavigation({ active }: NavigationProps) {
       } else if (event === 'SIGNED_OUT') {
         setStudentProfile(null)
         router.push('/auth/signin')
+        disableBackButton()
       }
     })
 
@@ -75,11 +76,19 @@ export default function StudentNavigation({ active }: NavigationProps) {
     }
   }
 
+  const disableBackButton = () => {
+    window.history.pushState(null, '', window.location.href)
+    window.onpopstate = function () {
+      window.history.pushState(null, '', window.location.href)
+    }
+  }
+
   const handleLogout = async () => {
     setIsLoggingOut(true)
     try {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
+      disableBackButton()
       router.push('/auth/signin')
     } catch (error) {
       console.error('Error signing out:', error)
@@ -171,18 +180,21 @@ export default function StudentNavigation({ active }: NavigationProps) {
                 />
               )
             ))}
+            {/* Logout button styled as a nav item */}
+            <div 
+              className={`flex items-center space-x-2 p-2 rounded hover:bg-gray-100 cursor-pointer ${
+                isLoggingOut ? 'pointer-events-none opacity-50' : ''
+              }`}
+              onClick={handleLogout}
+            >
+              {isLoggingOut ? (
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              ) : (
+                <LogOut size={20} className="mr-2" />
+              )}
+              <span>{isLoggingOut ? "Logging out..." : "Logout"}</span>
+            </div>
           </nav>
-        </div>
-        <div className="p-4 border-t">
-          <Button
-            variant="ghost"
-            className="w-full justify-start"
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-          >
-            {isLoggingOut ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut size={20} className="mr-2" />}
-            {isLoggingOut ? "Logging out..." : "Logout"}
-          </Button>
         </div>
       </aside>
     </>

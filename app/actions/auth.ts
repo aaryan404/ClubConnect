@@ -3,18 +3,38 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
+const supabase = createClient(supabaseUrl, supabaseKey)
+
+// Email validation function
+function validateEmail(email: string): { isValid: boolean; message: string } {
+  // Check if email is empty or not a string
+  if (!email || typeof email !== 'string') {
+    return { isValid: false, message: 'Email is required.' }
   }
-})
+
+  // Check basic email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(email)) {
+    return { isValid: false, message: 'Please enter a valid email address.' }
+  }
+
+  // Check for specific domain
+  const domain = email.split('@')[1]
+  if (domain !== 'nctorontostudents.ca') {
+    return { 
+      isValid: false, 
+      message: 'Please use your @nctorontostudents.ca email address to sign up.' 
+    }
+  }
+
+  return { isValid: true, message: '' }
+}
 
 export async function signUp(formData: {
   name: string
@@ -26,82 +46,146 @@ export async function signUp(formData: {
   console.log('Form data:', { ...formData, password: '[REDACTED]' })
 
   try {
-    // Check if the student exists
-    const { data: existingStudent, error: studentError } = await supabase
+    // Validate email domain first
+    const emailValidation = validateEmail(formData.email)
+    if (!emailValidation.isValid) {
+      return { success: false, message: emailValidation.message }
+    }
+
+    // Test database connection
+    const { data: testData, error: testError } = await supabase
       .from('students')
-      .select('*')
-      .eq('email', formData.email)
-      .eq('student_id', formData.studentId)
-      .single()
+      .select('id')
+      .limit(1)
+    
+    if (testError) {
+      console.error('Database connection test failed:', JSON.stringify(testError, null, 2))
+      return { success: false, message: 'Unable to connect to the database. Please try again later.' }
+    }
+    console.log('Database connection test successful.')
 
-    if (studentError && studentError.code !== 'PGRST116') {
-      console.error('Error checking student:', studentError)
-      return { success: false, message: 'Error checking student information.' }
+    // Check if user already exists
+    const { data: existingUser, error: userCheckError } = await supabase
+      .from('students')
+      .select('id')
+      .eq('email', formData.email.toLowerCase().trim())
+      .maybeSingle()
+
+    if (userCheckError) {
+      console.error('Error checking existing user:', JSON.stringify(userCheckError, null, 2))
+      return { success: false, message: 'Error checking user information.' }
     }
 
-    if (!existingStudent) {
-      console.log('No matching student found. Inserting new student record.')
-      const { data: newStudent, error: insertError } = await supabase
-        .from('students')
-        .insert({
-          email: formData.email,
-          student_id: formData.studentId,
-          name: formData.name
-        })
-        .single()
-
-      if (insertError) {
-        console.error('Error inserting new student:', insertError)
-        return { success: false, message: 'Failed to create new student record.' }
-      }
-
-      console.log('New student record created:', newStudent)
-    } else {
-      console.log('Existing student found:', existingStudent)
+    if (existingUser) {
+      return { success: false, message: 'A user with this email already exists.' }
     }
+    console.log('User does not exist. Proceeding with sign up...')
 
-    // Sign up the user
-    const { data, error } = await supabase.auth.admin.createUser({
-      email: formData.email,
+    // Create auth user
+    console.log('Attempting to create auth user...')
+    const startTime = Date.now()
+    const { data: authUser, error: authError } = await supabase.auth.signUp({
+      email: formData.email.toLowerCase().trim(),
       password: formData.password,
-      email_confirm: true,
-      user_metadata: {
-        name: formData.name,
-        student_id: formData.studentId,
-      },
-    })
-
-    if (error) {
-      console.error('Error creating user:', error)
-      return { success: false, message: error.message }
-    }
-
-    if (data.user) {
-      console.log('User created successfully:', data.user.id)
-
-      // Insert the user profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: data.user.id,
+      options: {
+        data: {
           name: formData.name,
-          email: formData.email,
           student_id: formData.studentId,
-        })
-
-      if (profileError) {
-        console.error('Error creating user profile:', profileError)
-        return { success: false, message: 'Failed to create user profile.' }
+        }
       }
+    })
+    const endTime = Date.now()
+    console.log(`Auth user creation attempt completed in ${endTime - startTime}ms`)
 
-      console.log('User profile created successfully')
-      return { success: true, message: 'Sign up successful. Please check your email to verify your account.' }
+    if (authError) {
+      console.error('Error creating auth user:')
+      console.error('Error object:', JSON.stringify(authError, null, 2))
+      console.error('Error name:', authError.name)
+      console.error('Error message:', authError.message)
+      console.error('Error status:', authError.status)
+      if (authError.cause) {
+        console.error('Error cause:', JSON.stringify(authError.cause, null, 2))
+      }
+      return { success: false, message: authError.message || 'Failed to create user account.' }
     }
 
-    console.error('Unexpected error: User data is null')
-    return { success: false, message: 'An unexpected error occurred. Please try again.' }
+    if (!authUser || !authUser.user) {
+      console.error('Auth user creation succeeded but user object is null or undefined')
+      console.log('Full response data:', JSON.stringify(authUser, null, 2))
+      return { success: false, message: 'Unexpected error during user creation.' }
+    }
+
+    console.log('Auth user created successfully:')
+    console.log('User ID:', authUser.user.id)
+    console.log('User email:', authUser.user.email)
+    console.log('User created at:', authUser.user.created_at)
+    console.log('User metadata:', JSON.stringify(authUser.user.user_metadata, null, 2))
+
+    // Insert into students table
+    const { error: insertError } = await supabase
+      .from('students')
+      .insert({
+        id: authUser.user.id,
+        email: formData.email.toLowerCase().trim(),
+        student_id: formData.studentId,
+        name: formData.name,
+        role: 'student',
+        club: '', // Empty string for new users
+        avatar_url: '', // Empty string for new users
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      
+
+    if (insertError) {
+      console.error('Error inserting student record:', JSON.stringify(insertError, null, 2))
+      // Clean up the created auth user
+      const { error: deleteError } = await supabase.auth.admin.deleteUser(authUser.user.id)
+      if (deleteError) {
+        console.error('Error deleting auth user after failed student record insertion:', JSON.stringify(deleteError, null, 2))
+      }
+      return { success: false, message: 'Failed to create student record. Please try again.' }
+    }
+
+    // Create profile record
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert({
+        student_id: authUser.user.id,  // Using the auth user ID as the student_id
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+        // Add any other required profile fields with default values
+      })
+
+    if (profileError) {
+      console.error('Error creating profile:', JSON.stringify(profileError, null, 2))
+      // Clean up the created auth user and student record
+      await supabase.auth.admin.deleteUser(authUser.user.id)
+      await supabase
+        .from('students')
+        .delete()
+        .eq('id', authUser.user.id)
+      return { success: false, message: 'Failed to create user profile. Please try again.' }
+    }
+
+    console.log('Student record and profile created successfully')
+    return { 
+      success: true, 
+      message: 'Sign up successful. Please check your email for verification instructions.',
+      userId: authUser.user.id
+    }
   } catch (error) {
-    console.error('Unexpected error during sign up:', error)
+    console.error('Unexpected error during sign up:')
+    console.error('Error object:', JSON.stringify(error, null, 2))
+    if (error instanceof Error) {
+      console.error('Error name:', error.name)
+      console.error('Error message:', error.message)
+      if (error.stack) {
+        console.error('Error stack:', error.stack)
+      }
+    } else {
+      console.error('Unexpected error:', error)
+    }
     return { success: false, message: 'An unexpected error occurred. Please try again.' }
   }
 }
