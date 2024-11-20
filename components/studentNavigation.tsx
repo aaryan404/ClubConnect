@@ -55,9 +55,9 @@ export default function StudentNavigation({ active }: NavigationProps) {
 
       if (user) {
         const { data, error } = await supabase
-          .from('profiles')
+          .from('students')
           .select('*')
-          .eq('id', user.id)
+          .eq('email', user.email)
           .single()
 
         if (error) throw error

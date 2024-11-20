@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@hcaptcha/react-hcaptcha": "^1.11.0",
     "@prisma/client": "^5.21.1",
     "@radix-ui/react-alert-dialog": "^1.1.2",
     "@radix-ui/react-avatar": "^1.1.0",

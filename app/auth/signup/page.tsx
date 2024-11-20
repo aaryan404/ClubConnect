@@ -3,16 +3,16 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff } from 'lucide-react'
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { signUp } from "@/app/actions/auth"
 
-export default function SignUpPage() {
+export default function SignUpAPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [formData, setFormData] = useState({
@@ -85,6 +85,7 @@ export default function SignUpPage() {
       newErrors.email = "Email must be a valid @nctorontostudents.ca address"
       isValid = false
     }
+
     if (!formData.studentId.trim()) {
       newErrors.studentId = "Student ID is required"
       isValid = false

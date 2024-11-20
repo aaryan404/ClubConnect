@@ -55,7 +55,7 @@ export async function signUp(formData: {
     // Test database connection
     const { data: testData, error: testError } = await supabase
       .from('students')
-      .select('id')
+      .select('student_id')
       .limit(1)
     
     if (testError) {
@@ -67,7 +67,7 @@ export async function signUp(formData: {
     // Check if user already exists
     const { data: existingUser, error: userCheckError } = await supabase
       .from('students')
-      .select('id')
+      .select('student_id')
       .eq('email', formData.email.toLowerCase().trim())
       .maybeSingle()
 
@@ -125,7 +125,7 @@ export async function signUp(formData: {
     const { error: insertError } = await supabase
       .from('students')
       .insert({
-        id: authUser.user.id,
+
         email: formData.email.toLowerCase().trim(),
         student_id: formData.studentId,
         name: formData.name,
@@ -136,7 +136,6 @@ export async function signUp(formData: {
         updated_at: new Date().toISOString()
       })
       
-
     if (insertError) {
       console.error('Error inserting student record:', JSON.stringify(insertError, null, 2))
       // Clean up the created auth user
@@ -147,28 +146,7 @@ export async function signUp(formData: {
       return { success: false, message: 'Failed to create student record. Please try again.' }
     }
 
-    // Create profile record
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        student_id: authUser.user.id,  // Using the auth user ID as the student_id
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-        // Add any other required profile fields with default values
-      })
-
-    if (profileError) {
-      console.error('Error creating profile:', JSON.stringify(profileError, null, 2))
-      // Clean up the created auth user and student record
-      await supabase.auth.admin.deleteUser(authUser.user.id)
-      await supabase
-        .from('students')
-        .delete()
-        .eq('id', authUser.user.id)
-      return { success: false, message: 'Failed to create user profile. Please try again.' }
-    }
-
-    console.log('Student record and profile created successfully')
+    console.log('Student record created successfully')
     return { 
       success: true, 
       message: 'Sign up successful. Please check your email for verification instructions.',
