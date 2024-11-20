@@ -40,11 +40,11 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import AdminSidebar from '@/components/AdminSidebar'
 
 interface User {
-  id: string
+  email: string
   name: string
   student_id: string
-  email: string
   role: 'student' | 'sub-admin'
+  club?: string // Added club property to User interface
 }
 
 interface SubAdmin extends User {
@@ -110,8 +110,6 @@ export default function AdminUserManagement() {
     setIsLoading(false)
   }
 
-  
-
   const fetchClubs = async () => {
     const { data, error } = await supabase
       .from('clubs')
@@ -129,124 +127,98 @@ export default function AdminUserManagement() {
     }
   }
 
-  const handleRoleChange = (userId: string, newRole: 'student' | 'sub-admin') => {
+  const handleRoleChange = (userEmail: string, newRole: 'student' | 'sub-admin') => {
     if (newRole === 'sub-admin') {
-      const user = users.find(u => u.id === userId)
+      const user = users.find(u => u.email === userEmail)
       if (user) {
         setSubAdminToAssign(user)
       }
     } else {
-      setChangedRoles(prev => ({ ...prev, [userId]: newRole }))
+      setChangedRoles(prev => ({ ...prev, [userEmail]: newRole }))
     }
   }
 
   const handleSaveChanges = async () => {
-    for (const [userId, newRole] of Object.entries(changedRoles)) {
+    for (const [userEmail, newRole] of Object.entries(changedRoles)) {
       try {
-        console.log('Processing user:', userId, 'New role:', newRole);
-        
-        // First get the student_id from students table
-        const { data: studentData, error: studentError } = await supabase
+        console.log('Processing user:', userEmail, 'New role:', newRole)
+      
+        // Get the user's current club from students table
+        const { data: userData, error: userError } = await supabase
           .from('students')
-          .select('student_id')
-          .eq('id', userId)
-          .single();
-        
-        if (studentError) {
-          console.error('Error fetching student_id:', studentError);
-          throw studentError;
-        }
-  
+          .select('club')
+          .eq('email', userEmail)
+          .single()
+      
+        if (userError) throw userError
+
         // Update the role in students table
         const { data: updateData, error: updateError } = await supabase
           .from('students')
           .update({ role: newRole })
-          .eq('id', userId)
+          .eq('email', userEmail)
           .select()
-        
-        if (updateError) {
-          console.error('Update error:', updateError);
-          throw updateError;
-        }
-        
-        console.log('Update successful:', updateData);
-  
-        // Update the profiles table using student_id
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({ role: newRole })
-          .eq('student_id', studentData.student_id)  // Using student_id instead of userId
-        
-        if (profileError) {
-          console.error('Profile update error:', profileError);
-          throw profileError;
-        }
-  
-        if (newRole === 'student') {
-          console.log('Attempting to delete from sub_admins for user:', userId);
-          
-          // First check if user exists in sub_admins
-          const { data: checkData, error: checkError } = await supabase
+      
+        if (updateError) throw updateError
+      
+        console.log('Update successful:', updateData)
+
+       
+
+        // Handle sub_admins table updates
+        if (newRole === 'sub-admin' && userData?.club) {
+          // Insert or update in sub_admins table
+          const { error: subAdminError } = await supabase
             .from('sub_admins')
-            .select('*')
-            .eq('user_id', userId);
-            
-          console.log('Check sub_admin existence:', checkData);
+            .upsert({ 
+              email: userEmail,
+              club_id: userData.club
+            })
+        
+          if (subAdminError) throw subAdminError
           
-          if (checkData && checkData.length > 0) {
-            // User exists in sub_admins, proceed with deletion
-            const { data: deleteData, error: deleteError } = await supabase
-              .from('sub_admins')
-              .delete()
-              .eq('user_id', userId)
-              .select()
-            
-            if (deleteError) {
-              console.error('Delete error:', deleteError);
-              toast({
-                title: "Error",
-                description: `Failed to remove user from sub-admins: ${deleteError.message}`,
-                variant: "destructive",
-              })
-            } else {
-              console.log('Delete successful:', deleteData);
-              // Update local state to reflect the change
-              setSubAdmins(prevSubAdmins => prevSubAdmins.filter(admin => admin.id !== userId))
-            }
-          } else {
-            console.log('User not found in sub_admins table');
-          }
+          console.log('Inserted/Updated sub_admin:', userEmail, 'with club:', userData.club)
+        } else if (newRole !== 'sub-admin') {
+          // Delete from sub_admins if role is changed to something else
+          const { error: deleteError } = await supabase
+            .from('sub_admins')
+            .delete()
+            .eq('email', userEmail)
+        
+          if (deleteError) throw deleteError
+          
+          console.log('Removed sub_admin:', userEmail)
         }
-  
+
       } catch (error) {
-        console.error('General error in handleSaveChanges:', error);
+        console.error('Error in handleSaveChanges:', error)
         toast({
           title: "Error",
-          description: `Failed to update user ${userId}. Please try again.`,
+          description: `Failed to update user ${userEmail}. Please try again.`,
           variant: "destructive",
         })
       }
     }
     
     setChangedRoles({})
-    // Reload data after all changes
-    await Promise.all([fetchUsers(), fetchSubAdmins()]);
+    await Promise.all([fetchUsers(), fetchSubAdmins()])
     toast({
       title: "Changes Saved",
       description: "User roles have been updated successfully.",
     })
   }
+
   const handleDeleteUser = (user: User) => {
     setUserToDelete(user)
   }
 
   const confirmDeleteUser = async () => {
     if (userToDelete) {
-      console.log('Deleting user:', userToDelete.id)
+      console.log('Deleting user:', userToDelete.email)
       const { error } = await supabase
         .from('students')
         .delete()
-        .eq('id', userToDelete.id)
+        .eq('email', userToDelete.email)
       
       if (error) {
         console.error('Error deleting user:', error)
@@ -257,11 +229,10 @@ export default function AdminUserManagement() {
         })
       } else {
         console.log('User deleted successfully')
-        // Remove user from sub_admins table if they were a sub-admin
         const { error: subAdminError } = await supabase
           .from('sub_admins')
           .delete()
-          .eq('user_id', userToDelete.id)
+          .eq('email', userToDelete.email)
 
         if (subAdminError) {
           console.error('Error removing user from sub_admins:', subAdminError)
@@ -283,7 +254,7 @@ export default function AdminUserManagement() {
   const handleAssignClub = async () => {
     if (subAdminToAssign && selectedClub) {
       try {
-        console.log('Assigning club:', selectedClub, 'to user:', subAdminToAssign.id)
+        console.log('Assigning club:', selectedClub, 'to user:', subAdminToAssign.email)
         
         // Update the user's role to 'sub-admin' and assign the club in the students table
         const { data, error } = await supabase
@@ -292,13 +263,13 @@ export default function AdminUserManagement() {
             role: 'sub-admin',
             club: selectedClub
           })
-          .eq('id', subAdminToAssign.id)
+          .eq('email', subAdminToAssign.email)
           .select()
-  
+
         if (error) throw error
-  
+
         console.log('Club assigned successfully:', data)
-        setChangedRoles(prev => ({ ...prev, [subAdminToAssign.id]: 'sub-admin' }))
+        setChangedRoles(prev => ({ ...prev, [subAdminToAssign.email]: 'sub-admin' }))
         toast({
           title: "Sub-Admin Assigned",
           description: `${subAdminToAssign.name} has been assigned as sub-admin to the selected club.`,
@@ -308,7 +279,7 @@ export default function AdminUserManagement() {
         console.error('Error assigning sub-admin:', error)
         toast({
           title: "Error",
-          description: "Failed to assign sub-admin. Please try again.",
+          description: (error as Error).message || "Failed to assign sub-admin. Please try again.",
           variant: "destructive",
         })
       } finally {
@@ -337,6 +308,7 @@ export default function AdminUserManagement() {
       setSubAdmins(data || [])
     }
   }
+
   const filteredUsers = users.filter(user => 
     user.student_id.includes(filter) || user.name.toLowerCase().includes(filter.toLowerCase())
   )
@@ -380,14 +352,14 @@ export default function AdminUserManagement() {
               </TableHeader>
               <TableBody>
                 {filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
+                  <TableRow key={user.email}>
                     <TableCell>{user.name}</TableCell>
                     <TableCell>{user.student_id}</TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
                       <Select
-                        value={changedRoles[user.id] || user.role}
-                        onValueChange={(value: 'student' | 'sub-admin') => handleRoleChange(user.id, value)}
+                        value={changedRoles[user.email] || user.role}
+                        onValueChange={(value: 'student' | 'sub-admin') => handleRoleChange(user.email, value)}
                       >
                         <SelectTrigger className="w-[180px]">
                           <SelectValue placeholder="Select a role" />
@@ -426,12 +398,12 @@ export default function AdminUserManagement() {
             </TableHeader>
             <TableBody>
               {subAdmins.map((subAdmin) => (
-                <TableRow key={subAdmin.id}>
+                <TableRow key={subAdmin.email}>
                   <TableCell>{subAdmin.name}</TableCell>
                   <TableCell>{subAdmin.email}</TableCell>
                   <TableCell>
                     <span className="bg-blue-100 text-blue-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded">
-                        {clubs.find(club => club.id === subAdmin.club)?.name || 'N/A'}
+                      {clubs.find(club => club.id === subAdmin.club)?.name || 'N/A'}
                     </span>
                   </TableCell>
                 </TableRow>

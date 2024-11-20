@@ -98,7 +98,8 @@ export default function StudentDashboard() {
         club_id
       `)
       .order('join_clicks', { ascending: false })
-      .limit(3)
+      .limit(5) // Updated limit here
+
   
     if (error) {
       console.error('Error fetching events:', error)
@@ -154,7 +155,6 @@ export default function StudentDashboard() {
 
     const userClubIds = new Set(userClubs.map(uc => uc.club_id))
 
-    // Filter out the "Global" club, limit to 3 clubs, and add joined status
     const filteredClubs = data
       .filter(club => club.name !== "Global")
       .slice(0, 3)

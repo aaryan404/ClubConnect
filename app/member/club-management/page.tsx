@@ -23,7 +23,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Edit, Trash2 } from 'lucide-react'
+import { Plus, Edit, Trash2, Loader2 } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import {
@@ -41,7 +41,9 @@ import Navigation from '@/components/studentNavigation'
 interface Club {
   id: string
   name: string
+  description: string
   member_count: number
+  image_url: string | null
 }
 
 interface Announcement {
@@ -62,11 +64,13 @@ interface Event {
   club_id: string
 }
 
+
 export default function ClubManagementPage() {
   const [club, setClub] = useState<Club | null>(null)
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [events, setEvents] = useState<Event[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [isAnnouncementDialogOpen, setIsAnnouncementDialogOpen] = useState(false)
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false)
   const [currentItem, setCurrentItem] = useState<Announcement | Event | null>(null)
@@ -79,69 +83,94 @@ export default function ClubManagementPage() {
     fetchClubData()
   }, [])
 
-  const fetchClubData = async () => {
+  async function fetchClubData() {
     setIsLoading(true)
+    setError(null)
     try {
+      // First, get the current user's email
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError) throw userError
 
-      if (!user || !user.email) {
+      if (!user?.email) {
         throw new Error("User not authenticated or email not available")
       }
 
+      // Check if the user is a sub-admin in the students table
       const { data: studentData, error: studentError } = await supabase
         .from('students')
-        .select('id, role')
+        .select('role')
         .eq('email', user.email)
         .single()
 
       if (studentError) throw studentError
 
       if (!studentData || studentData.role !== 'sub-admin') {
-        throw new Error("User is not authorized as a sub-admin")
+        setError("Access denied. Only sub-admins can access this page.")
+        setIsLoading(false)
+        return
       }
 
+      // Get the club_id from sub_admins table
       const { data: subAdminData, error: subAdminError } = await supabase
         .from('sub_admins')
         .select('club_id')
-        .eq('user_id', studentData.id)
+        .eq('email', user.email)
         .single()
 
-      if (subAdminError) throw subAdminError
-
-      if (!subAdminData) {
-        throw new Error("No sub-admin data found for this user")
+      if (subAdminError) {
+        console.error('Sub admin error:', subAdminError)
+        if (subAdminError.code === 'PGRST116') {
+          setError("No club assignment found for your account. Please contact an administrator.")
+        } else {
+          setError("Error fetching sub-admin data. Please try again.")
+        }
+        setIsLoading(false)
+        return
       }
 
+      if (!subAdminData?.club_id) {
+        setError("No club assigned to your account. Please contact an administrator.")
+        setIsLoading(false)
+        return
+      }
+
+      // Get club details
       const { data: clubData, error: clubError } = await supabase
         .from('clubs')
         .select('*')
         .eq('id', subAdminData.club_id)
         .single()
 
-      if (clubError) throw clubError
+      if (clubError) {
+        console.error('Club error:', clubError)
+        throw clubError
+      }
 
       setClub(clubData)
 
+      // Fetch announcements for the club
       const { data: announcementsData, error: announcementsError } = await supabase
         .from('announcements')
         .select('*')
         .eq('club_id', subAdminData.club_id)
+        .order('date', { ascending: false })
 
       if (announcementsError) throw announcementsError
-
       setAnnouncements(announcementsData || [])
 
+      // Fetch events for the club
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select('*')
         .eq('club_id', subAdminData.club_id)
+        .order('date', { ascending: true })
 
       if (eventsError) throw eventsError
-
       setEvents(eventsData || [])
+
     } catch (error) {
       console.error('Error fetching club data:', error)
+      setError("An unexpected error occurred. Please try again later.")
       toast({
         title: "Error",
         description: "Failed to fetch club data. Please try again.",
@@ -151,6 +180,7 @@ export default function ClubManagementPage() {
       setIsLoading(false)
     }
   }
+
 
   const handleCreateAnnouncement = async (formData: FormData) => {
     try {
@@ -316,16 +346,50 @@ export default function ClubManagementPage() {
   }
 
   if (isLoading) {
-    return <div>Loading...</div>
+    return (
+      <div className="flex h-screen bg-gray-100">
+        <Navigation active="club-management" />
+        <main className="flex-1 p-8 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin" />
+            <p className="text-muted-foreground">Loading club data...</p>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-screen bg-gray-100">
+        <Navigation active="club-management" />
+        <main className="flex-1 p-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Error</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-destructive">{error}</p>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    )
   }
 
   if (!club) {
     return (
       <div className="flex h-screen bg-gray-100">
         <Navigation active="club-management" />
-        <main className="flex-1 p-8 overflow-y-auto">
-          <h1 className="text-3xl font-bold mb-6">Club Management</h1>
-          <p className="text-lg mb-6">You do not have permission to manage any clubs or are not assigned to a club.</p>
+        <main className="flex-1 p-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>No Club Found</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p>No club data available. Please contact an administrator.</p>
+            </CardContent>
+          </Card>
         </main>
       </div>
     )
