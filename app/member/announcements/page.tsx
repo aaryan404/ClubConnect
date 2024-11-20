@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2 } from 'lucide-react'
+import { Loader2, Router } from 'lucide-react'
 import Navigation from '@/components/studentNavigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useToast } from "@/hooks/use-toast"
@@ -46,6 +46,7 @@ export default function AnnouncementsPage() {
   const { toast } = useToast()
 
   useEffect(() => {
+    
     fetchUserClubs()
     fetchAnnouncements()
   }, [activeTab])
@@ -54,6 +55,7 @@ export default function AnnouncementsPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('No user found')
+        
 
       const { data, error } = await supabase
         .from('student_clubs')

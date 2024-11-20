@@ -11,8 +11,9 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { signUp } from "@/app/actions/auth"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
-export default function SignUpAPage() {
+export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [formData, setFormData] = useState({
@@ -30,6 +31,7 @@ export default function SignUpAPage() {
     confirmPassword: "",
   })
   const [passwordStrength, setPasswordStrength] = useState(0)
+  const [userExistsError, setUserExistsError] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
@@ -142,11 +144,19 @@ export default function SignUpAPage() {
         })
         router.push('/auth/signin')
       } else {
-        toast({
-          title: "Error",
-          description: result.message,
-          variant: "destructive",
-        })
+        if (result.message.includes("already exists")) {
+          toast({
+            title: "User Already Exists",
+            description: "An account with this email or student ID already exists.",
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Error",
+            description: result.message,
+            variant: "destructive",
+          })
+        }
       }
     } catch (error) {
       console.error('Error during sign up:', error)
@@ -168,6 +178,14 @@ export default function SignUpAPage() {
           <CardDescription className="text-center">Join our community of student clubs</CardDescription>
         </CardHeader>
         <CardContent>
+        
+            <Alert variant="destructive" className="mb-4">
+              <AlertTitle>User Already Exists</AlertTitle>
+              <AlertDescription>
+                An account with this email already exists. Please try signing in or use a different email.
+              </AlertDescription>
+            </Alert>
+          
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>

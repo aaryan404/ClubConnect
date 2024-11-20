@@ -126,7 +126,7 @@ export default function SignInPage() {
             redirectPath = '/admin/dashboard'
             break
           case 'sub_admin':
-            redirectPath = '/sub-admin/dashboard'
+            redirectPath = '/member/dashboard'
             break
           case 'student':
             redirectPath = '/member/dashboard'
