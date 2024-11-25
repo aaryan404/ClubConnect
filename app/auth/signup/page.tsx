@@ -19,6 +19,7 @@ export default function SignUpPage() {
     name: "",
     email: "",
     studentId: "",
+    securityPin: "",
     password: "",
     confirmPassword: "",
   })
@@ -26,6 +27,7 @@ export default function SignUpPage() {
     name: "",
     email: "",
     studentId: "",
+    securityPin: "",
     password: "",
     confirmPassword: "",
   })
@@ -93,6 +95,14 @@ export default function SignUpPage() {
       newErrors.studentId = "Student ID must be exactly 7 digits"
       isValid = false
     }
+
+    if (!formData.securityPin.trim()) {
+      newErrors.securityPin = "Security PIN is required"
+      isValid = false
+    } else if (!/^\d{4}$/.test(formData.securityPin)) {
+      newErrors.securityPin = "Security PIN must be exactly 4 digits"
+      isValid = false
+    }
     
     if (!formData.password) {
       newErrors.password = "Password is required"
@@ -132,6 +142,7 @@ export default function SignUpPage() {
         name: formData.name,
         email: formData.email,
         studentId: formData.studentId,
+        securityPin: formData.securityPin,
         password: formData.password,
       })
 
@@ -143,13 +154,11 @@ export default function SignUpPage() {
         router.push('/auth/signin')
       } else {
         if (result.message.includes("already exists")) {
-          
           toast({
             title: "User Already Exists",
             description: "An account with this email or student ID already exists.",
             variant: "destructive",
           })
-          
         } else {
           alert("An account with this email or student ID already exists.")
           toast({
@@ -179,7 +188,6 @@ export default function SignUpPage() {
           <CardDescription className="text-center">Join our community of student clubs</CardDescription>
         </CardHeader>
         <CardContent>
-          
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
@@ -217,6 +225,21 @@ export default function SignUpPage() {
                 required
               />
               {errors.studentId && <p className="text-sm text-red-500">{errors.studentId}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="securityPin">Security PIN</Label>
+              <Input
+                id="securityPin"
+                name="securityPin"
+                type="password"
+                placeholder="4-digit PIN"
+                maxLength={4}
+                value={formData.securityPin}
+                onChange={handleChange}
+                required
+              />
+              {errors.securityPin && <p className="text-sm text-red-500">{errors.securityPin}</p>}
+              <p className="text-sm text-gray-500">Enter a 4-digit security PIN for account recovery</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Create Password</Label>

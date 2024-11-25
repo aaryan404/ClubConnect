@@ -68,11 +68,11 @@ export default function SignInPage() {
             const data = await response.json()
             user = data.user
             role = 'super_admin'
-            router.push('/super_admin')
             toast({
               title: "Signed in successfully",
               description: "Welcome back, Super Admin!",
             })
+            setTimeout(() => router.push('/super_admin'), 1000)
             return
           } catch (error) {
             console.error('Super admin login error:', error)
@@ -98,6 +98,19 @@ export default function SignInPage() {
           throw new Error('Authentication failed. Please try again.')
         }
 
+        // Check if the user is active
+        const { data, error } = await supabase
+          .from('students')
+          .select('*')
+          .eq('email', identifier)
+          .eq('is_active', true)
+          .single()
+
+        if (error || !data) {
+          setAlertError('Invalid email/ID or password, or account has been deactivated.')
+          return
+        }
+
         // Check user role by querying each table
         const tables = ['admins', 'sub_admins', 'students']
         for (const table of tables) {
@@ -111,7 +124,7 @@ export default function SignInPage() {
             console.error(`Error checking ${table}:`, error)
           } else if (data) {
             user = data
-            role = table === 'students' ? 'student' : table === 'sub_admins' ? 'sub_admin' : 'admin'
+            role = table === 'students' ? 'student' : table === 'sub_admins' ? 'sub-admin' : 'admin'
             break
           }
         }
@@ -125,22 +138,28 @@ export default function SignInPage() {
           case 'admin':
             redirectPath = '/admin/dashboard'
             break
-          case 'sub_admin':
+          case 'sub-admin':
             redirectPath = '/member/dashboard'
             break
+
           case 'student':
+            
             redirectPath = '/member/dashboard'
             break
           default:
             throw new Error('Invalid user role')
         }
 
+        const userName = user.name || user.email || 'User'
         toast({
           title: "Signed in successfully",
-          description: `Welcome back, ${user.name || user.full_name}!`,
+          description: `Welcome back, ${userName}!`,
         })
 
-        router.push(redirectPath)
+        // Delay the redirect to allow the toast to be displayed
+        setTimeout(() => {
+          router.push(redirectPath)
+        }, 1000)
       } catch (error) {
         console.error('Login failed:', error)
         if (error instanceof Error) {
@@ -207,7 +226,7 @@ export default function SignInPage() {
           </Button>
         </form>
         <div className="mt-4 text-center text-sm">
-          <Link href="/forgot-password" className="text-blue-600 hover:underline">
+          <Link href="/auth/forgetPassword" className="text-blue-600 hover:underline">
             Forgot Password?
           </Link>
         </div>
@@ -221,3 +240,4 @@ export default function SignInPage() {
     </div>
   )
 }
+

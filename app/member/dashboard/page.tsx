@@ -91,14 +91,11 @@ export default function StudentDashboard() {
     const { data, error } = await supabase
       .from('events')
       .select(`
-        id, 
-        title, 
-        date, 
-        join_clicks,
-        club_id
+        *
       `)
-      .order('join_clicks', { ascending: false })
-      .limit(5) // Updated limit here
+      .gt('join_clicks', 0)  // This line filters out events with join_clicks <= 0
+    .order('join_clicks', { ascending: false })
+    .limit(5)
 
   
     if (error) {

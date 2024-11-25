@@ -6,10 +6,22 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Camera, Loader2 } from 'lucide-react'
+import { Camera, Loader2, Trash2 } from 'lucide-react'
 import Navigation from '@/components/studentNavigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useToast } from "@/hooks/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { useRouter } from 'next/navigation'
 
 interface UserData {
   id: string
@@ -28,8 +40,10 @@ export default function ProfilePage() {
   const [newPhotoPreview, setNewPhotoPreview] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const supabase = createClientComponentClient()
   const { toast } = useToast()
+  const router = useRouter()
 
   useEffect(() => {
     fetchUserData()
@@ -42,7 +56,7 @@ export default function ProfilePage() {
 
       const { data, error } = await supabase
         .from('students')
-        .select('id, student_id, name, email, role, image_url')
+        .select('*')
         .eq('student_id', user.user_metadata.student_id)
         .single()
 
@@ -147,6 +161,55 @@ export default function ProfilePage() {
     }
   }
 
+  const handleDeleteProfile = async () => {
+    try {
+      setIsDeleting(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !userData) throw new Error('No user found')
+  
+      // Delete the user's data from the students table
+      const { error: deleteError } = await supabase
+        .from('students')
+        .delete()
+        .eq('email', userData.email)
+  
+      if (deleteError) throw deleteError
+  
+      // Call the server-side API to delete the user from auth.users
+      const response = await fetch('/api/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.id }),
+      })
+  
+      if (!response.ok) {
+        throw new Error('Failed to delete user from auth.users')
+      }
+  
+      // Sign out the user
+      const { error: signOutError } = await supabase.auth.signOut()
+      if (signOutError) throw signOutError
+  
+      toast({
+        title: "Account Deleted",
+        description: "Your account has been successfully deleted.",
+      })
+  
+      // Redirect to sign-in page
+      router.push('/auth/signin')
+    } catch (error) {
+      console.error('Error deleting profile:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete account. Please try again or contact support.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(false)
+    }
+  }
   if (isLoading) {
     return (
       <div className="flex h-screen bg-gray-100">
@@ -228,21 +291,48 @@ export default function ProfilePage() {
               <div id="role" className="text-lg font-medium mt-1">{userData.role}</div>
             </div>
           </CardContent>
-          <CardFooter className="flex justify-end space-x-4">
-            {isEditing ? (
-              <>
-                <Button variant="outline" onClick={() => setIsEditing(false)} disabled={isSaving}>Cancel</Button>
-                <Button onClick={handleSave} disabled={isSaving}>
-                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Save Changes
+          <CardFooter className="flex justify-between">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Profile
                 </Button>
-              </>
-            ) : (
-              <Button onClick={handleEdit}>Edit Profile</Button>
-            )}
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete your
+                    account and remove your data from our servers.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteProfile} disabled={isDeleting}>
+                    {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isDeleting ? 'Deleting...' : 'Yes, delete my account'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <div>
+              {isEditing ? (
+                <>
+                  <Button variant="outline" onClick={() => setIsEditing(false)} disabled={isSaving} className="mr-2">Cancel</Button>
+                  <Button onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Save Changes
+                  </Button>
+                </>
+              ) : (
+                <Button onClick={handleEdit}>Edit Profile</Button>
+              )}
+            </div>
           </CardFooter>
         </Card>
       </main>
     </div>
   )
 }
+

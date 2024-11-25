@@ -89,11 +89,12 @@ export default function AdminDashboard() {
         setClubData(clubsData.filter(club => club.name !== "Global"))
 
         // Fetch event data with participant counts
-        const { data: eventsData, error: eventsDataError } = await supabase
-          .from('events')
-          .select('id, title, join_clicks')
-          .order('join_clicks', { ascending: false })
-          .limit(5)
+         const { data: eventsData, error: eventsDataError } = await supabase
+    .from('events')
+    .select('*')
+    .gt('join_clicks', 0)  // This line filters out events with join_clicks <= 0
+    .order('join_clicks', { ascending: false })
+    .limit(5)
 
         if (eventsDataError) throw eventsDataError
         setEventData(eventsData || [])

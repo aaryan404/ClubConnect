@@ -40,6 +40,7 @@ export async function signUp(formData: {
   name: string
   email: string
   studentId: string
+  securityPin: string
   password: string
 }) {
   console.log('Starting sign up process...')
@@ -132,6 +133,7 @@ export async function signUp(formData: {
         role: 'student',
         club: '', // Empty string for new users
         avatar_url: '', // Empty string for new users
+        security_pin: formData.securityPin,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
