@@ -82,17 +82,25 @@ export default function AnnouncementsPage() {
         .from('announcements')
         .select('*, clubs(name)')
         .order('created_at', { ascending: false })
-
+  
       if (activeTab === "global") {
+        // Only fetch global announcements
         query = query.eq('club_id', '8cbef270-ff70-4a4d-97a1-94b8cf0121dc')
       } else if (activeTab === "club") {
-        query = query.neq('club_id', '8cbef270-ff70-4a4d-97a1-94b8cf0121dc')
+        // Fetch announcements from clubs the user is a member of
+        query = query.in('club_id', userClubs)
+          .neq('club_id', '8cbef270-ff70-4a4d-97a1-94b8cf0121dc')
+      } else if (activeTab === "all") {
+        // Fetch global announcements and announcements from clubs the user is a member of
+        query = query.or(
+          `club_id.eq.8cbef270-ff70-4a4d-97a1-94b8cf0121dc,club_id.in.(${userClubs.join(',')}))`
+        )
       }
-
+  
       const { data, error } = await query
-
+  
       if (error) throw error
-
+  
       setAnnouncements(data || [])
     } catch (error) {
       console.error('Error fetching announcements:', error)
@@ -105,7 +113,6 @@ export default function AnnouncementsPage() {
       setIsLoading(false)
     }
   }
-
   if (isLoading) {
     return (
       <div className="flex h-screen bg-gray-100">

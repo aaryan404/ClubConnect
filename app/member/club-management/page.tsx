@@ -64,7 +64,6 @@ interface Event {
   club_id: string
 }
 
-
 export default function ClubManagementPage() {
   const [club, setClub] = useState<Club | null>(null)
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
@@ -87,7 +86,6 @@ export default function ClubManagementPage() {
     setIsLoading(true)
     setError(null)
     try {
-      // First, get the current user's email
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError) throw userError
 
@@ -95,7 +93,6 @@ export default function ClubManagementPage() {
         throw new Error("User not authenticated or email not available")
       }
 
-      // Check if the user is a sub-admin in the students table
       const { data: studentData, error: studentError } = await supabase
         .from('students')
         .select('role')
@@ -110,7 +107,6 @@ export default function ClubManagementPage() {
         return
       }
 
-      // Get the club_id from sub_admins table
       const { data: subAdminData, error: subAdminError } = await supabase
         .from('sub_admins')
         .select('club_id')
@@ -134,7 +130,6 @@ export default function ClubManagementPage() {
         return
       }
 
-      // Get club details
       const { data: clubData, error: clubError } = await supabase
         .from('clubs')
         .select('*')
@@ -148,7 +143,6 @@ export default function ClubManagementPage() {
 
       setClub(clubData)
 
-      // Fetch announcements for the club
       const { data: announcementsData, error: announcementsError } = await supabase
         .from('announcements')
         .select('*')
@@ -158,7 +152,6 @@ export default function ClubManagementPage() {
       if (announcementsError) throw announcementsError
       setAnnouncements(announcementsData || [])
 
-      // Fetch events for the club
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select('*')
@@ -180,7 +173,6 @@ export default function ClubManagementPage() {
       setIsLoading(false)
     }
   }
-
 
   const handleCreateAnnouncement = async (formData: FormData) => {
     try {
@@ -347,9 +339,9 @@ export default function ClubManagementPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen bg-gray-100">
+      <div className="flex flex-col md:flex-row h-screen bg-gray-100">
         <Navigation active="club-management" />
-        <main className="flex-1 p-8 flex items-center justify-center">
+        <main className="flex-1 p-4 md:p-8 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <Loader2 className="h-8 w-8 animate-spin" />
             <p className="text-muted-foreground">Loading club data...</p>
@@ -361,9 +353,9 @@ export default function ClubManagementPage() {
 
   if (error) {
     return (
-      <div className="flex h-screen bg-gray-100">
+      <div className="flex flex-col md:flex-row h-screen bg-gray-100">
         <Navigation active="club-management" />
-        <main className="flex-1 p-8">
+        <main className="flex-1 p-4 md:p-8">
           <Card>
             <CardHeader>
               <CardTitle>Error</CardTitle>
@@ -379,9 +371,9 @@ export default function ClubManagementPage() {
 
   if (!club) {
     return (
-      <div className="flex h-screen bg-gray-100">
+      <div className="flex flex-col md:flex-row h-screen bg-gray-100">
         <Navigation active="club-management" />
-        <main className="flex-1 p-8">
+        <main className="flex-1 p-4 md:p-8">
           <Card>
             <CardHeader>
               <CardTitle>No Club Found</CardTitle>
@@ -396,24 +388,24 @@ export default function ClubManagementPage() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex flex-col md:flex-row h-screen bg-gray-100">
       <Navigation active="club-management" />
 
-      <main className="flex-1 p-8 overflow-y-auto">
-        <h1 className="text-3xl font-bold mb-6">Club Management - {club.name}</h1>
-        <p className="text-lg mb-6">Total Members: {club.member_count}</p>
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+        <h1 className="text-2xl md:text-3xl font-bold mb-4 md:mb-6 pt-8">Club Management - {club.name}</h1>
+        <p className="text-base md:text-lg mb-4 md:mb-6">Total Members: {club.member_count}</p>
 
         <Tabs defaultValue="announcements" className="mb-6">
-          <TabsList>
-            <TabsTrigger value="announcements">Announcements</TabsTrigger>
-            <TabsTrigger value="events">Events</TabsTrigger>
+          <TabsList className="w-full md:w-auto">
+            <TabsTrigger value="announcements" className="flex-1 md:flex-none">Announcements</TabsTrigger>
+            <TabsTrigger value="events" className="flex-1 md:flex-none">Events</TabsTrigger>
           </TabsList>
           <TabsContent value="announcements">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-semibold">Announcements</h2>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
+              <h2 className="text-xl md:text-2xl font-semibold mb-2 md:mb-0">Announcements</h2>
               <Dialog open={isAnnouncementDialogOpen} onOpenChange={setIsAnnouncementDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button onClick={() => setCurrentItem(null)}>
+                  <Button onClick={() => setCurrentItem(null)} className="w-full md:w-auto">
                     <Plus className="mr-2 h-4 w-4" /> Create Announcement
                   </Button>
                 </DialogTrigger>
@@ -447,7 +439,7 @@ export default function ClubManagementPage() {
                 </DialogContent>
               </Dialog>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {announcements.map((announcement) => (
                 <Card key={announcement.id}>
                   <CardHeader>
@@ -476,11 +468,11 @@ export default function ClubManagementPage() {
             </div>
           </TabsContent>
           <TabsContent value="events">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-semibold">Events</h2>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
+              <h2 className="text-xl md:text-2xl font-semibold mb-2 md:mb-0">Events</h2>
               <Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button onClick={() => setCurrentItem(null)}>
+                  <Button onClick={() => setCurrentItem(null)} className="w-full md:w-auto">
                     <Plus className="mr-2 h-4 w-4" /> Create Event
                   </Button>
                 </DialogTrigger>
@@ -532,7 +524,7 @@ export default function ClubManagementPage() {
                 </DialogContent>
               </Dialog>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {events.map((event) => (
                 <Card key={event.id}>
                   <CardHeader>
@@ -582,3 +574,4 @@ export default function ClubManagementPage() {
     </div>
   )
 }
+

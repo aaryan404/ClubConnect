@@ -59,13 +59,53 @@ export default function EventsPage() {
 
   const fetchEvents = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('No user found')
+  
+      let query = supabase
         .from('events')
         .select('*')
+  
+      // Fetch user's club IDs
+      const { data: userClubData, error: clubError } = await supabase
+        .from('student_clubs')
+        .select('club_id')
+        .eq('student_id', user.id)
+  
+      if (clubError) throw clubError
+  
+      const userClubIds = userClubData.map(item => item.club_id)
+  
+      // Modify query based on filters
+      if (activeTab === "global") {
+        query = query.eq('is_global', true)
+      } else if (activeTab === "club") {
+        query = query.in('club_id', userClubIds)
+          .eq('is_global', false)
+      } else if (activeTab === "joined") {
+        // Fetch event IDs user has joined
+        const { data: joinedEventData, error: joinedError } = await supabase
+          .from('student_events')
+          .select('event_id')
+          .eq('student_id', user.id)
+  
+        if (joinedError) throw joinedError
+  
+        const joinedEventIds = joinedEventData.map(item => item.event_id)
+        query = query.in('id', joinedEventIds)
+      }
+  
+      const { data, error } = await query
       
       if (error) throw error
       
-      setEvents(data || [])
+      // Additional client-side filtering to ensure events match user's clubs or are global
+      const filteredEvents = data?.filter(event => 
+        event.is_global || 
+        (event.club_id && userClubIds.includes(event.club_id))
+      ) || []
+      
+      setEvents(filteredEvents)
     } catch (error) {
       console.error('Error fetching events:', error)
       toast({
@@ -77,7 +117,6 @@ export default function EventsPage() {
       setIsLoading(false)
     }
   }
-
   const fetchClubs = async () => {
     try {
       const { data, error } = await supabase
@@ -252,7 +291,10 @@ export default function EventsPage() {
             {filteredEvents.map((event) => (
               <Card key={event.id} className="bg-white shadow-sm flex flex-col relative">
                 {!event.is_global && userClubs.includes(event.club_id!) && (
-                  <div className="absolute top-2 right-2 w-3 h-3 bg-green-500 rounded-full blink" title="You are a member of this club"></div>
+                  <div className="absolute top-2 right-2 w-3 h-3 bg-green-500 rounded-full blink" 
+                  title="You are a member of this club">
+                    
+                  </div>
                 )}
                 {event.image_url && (
                   <CardHeader className="p-0">

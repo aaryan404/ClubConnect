@@ -98,18 +98,6 @@ export default function SignInPage() {
           throw new Error('Authentication failed. Please try again.')
         }
 
-        // Check if the user is active
-        const { data, error } = await supabase
-          .from('students')
-          .select('*')
-          .eq('email', identifier)
-          .eq('is_active', true)
-          .single()
-
-        if (error || !data) {
-          setAlertError('Invalid email/ID or password, or account has been deactivated.')
-          return
-        }
 
         // Check user role by querying each table
         const tables = ['admins', 'sub_admins', 'students']
@@ -124,7 +112,7 @@ export default function SignInPage() {
             console.error(`Error checking ${table}:`, error)
           } else if (data) {
             user = data
-            role = table === 'students' ? 'student' : table === 'sub_admins' ? 'sub-admin' : 'admin'
+            role = table === 'students' ? 'student' : table === 'sub_admins' ? 'sub-admin' : table === 'admins' ? 'admin' : ''
             break
           }
         }

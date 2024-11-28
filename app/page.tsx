@@ -74,11 +74,11 @@ export default function LandingPage() {
             <Image src="/images/logo/favicon.svg" alt="NCT Logo" width={50} height={50} />
             <h1 className="text-2xl font-bold">ClubConnect</h1>
           </div>
-          <div className="space-x-4">
-            <Button variant="outline" asChild>
+          <div className="space-x-4 sm:space-y-0 sm:space-x-4 flex flex-col sm:flex-row">
+            <Button variant="outline" asChild >
               <Link href="/auth/signin">Sign In</Link>
             </Button>
-            <Button asChild>
+            <Button  asChild className=" sm:w-auto p">
               <Link href="/auth/signup">Sign Up</Link>
             </Button>
           </div>
@@ -185,15 +185,7 @@ export default function LandingPage() {
               <h3 className="text-lg font-semibold mb-4">About NCT ClubConnect</h3>
               <p>Connecting students with exciting opportunities to engage, learn, and grow through various clubs.</p>
             </div>
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
-              <ul className="space-y-2">
-                <li><Link href="/about" className="hover:underline">About Us</Link></li>
-                <li><Link href="/contact" className="hover:underline">Contact</Link></li>
-                <li><Link href="/privacy" className="hover:underline">Privacy Policy</Link></li>
-                <li><Link href="/terms" className="hover:underline">Terms of Service</Link></li>
-              </ul>
-            </div>
+            
             <div>
               <h3 className="text-lg font-semibold mb-4">Connect With Us</h3>
               <p>Follow us on social media for updates and news about NCT clubs.</p>
